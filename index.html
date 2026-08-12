@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0b">
+  <title>Aurora — ESP32 Vehicle Control</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ============ LOADING SCREEN ============ -->
+  <div class="loader" id="loader" aria-hidden="true">
+    <div class="loader-stage">
+      <div class="loader-wheel" id="loaderWheel" aria-hidden="true">
+        <span class="loader-rim"></span>
+        <span class="loader-spokes">
+          <i></i><i></i><i></i>
+        </span>
+        <span class="loader-hub">
+          <img class="loader-hub-logo" src="assets/auroratransparent.png" alt="Aurora" draggable="false" />
+        </span>
+      </div>
+      <div class="loader-progress">
+        <div class="loader-pct" id="loaderPct">0%</div>
+        <div class="loader-track">
+          <div class="loader-bar" id="loaderBar"></div>
+        </div>
+        <div class="loader-sub">INITIALIZING COCKPIT</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ CONNECTION BAR ============ -->
+  <header class="conn-bar">
+    <div class="conn-left">
+      <img class="brand-logo" src="assets/auroratransparent.png" alt="Aurora" draggable="false">
+      <span class="brand-name">AURORA</span>
+      <span class="brand-sub">VEHICLE CONTROL</span>
+    </div>
+    <div class="conn-center">
+      <span id="connState" class="conn-state">OFFLINE</span>
+      <span id="connLatency" class="conn-latency">PING —</span>
+    </div>
+    <div class="conn-right">
+      <div class="ws-url" id="wsUrl">ws://—</div>
+      <button id="btnConnect" class="btn btn-sm" type="button">CONNECT</button>
+    </div>
+  </header>
+
+  <!-- ============ MAIN COCKPIT ============ -->
+  <main class="cockpit">
+
+    <!-- ============ WINDSHIELD / CAMERA ============ -->
+    <section class="windshield" aria-label="Camera feed">
+      <div class="cam-view" id="camView">
+        <img id="camFeed" class="cam-feed" alt="ESP32-CAM live feed" />
+        <div class="cam-placeholder">
+          <svg viewBox="0 0 24 24" class="cam-placeholder-icon" fill="none" stroke="currentColor" stroke-width="1.2">
+            <rect x="2" y="6" width="14" height="12" rx="1"/>
+            <path d="M16 10l6-3v10l-6-3"/>
+          </svg>
+          <span>NO VIDEO SIGNAL</span>
+        </div>
+        <div class="cam-overlay">
+          <div class="cam-badge cam-badge-rec" id="camRecordingBadge" hidden><span class="cam-rec-dot"></span> REC</div>
+          <div class="cam-status" id="camStatus">STANDBY</div>
+          <div class="cam-hud" id="camHud">— × — &nbsp;•&nbsp; — FPS</div>
+          <div class="cam-controls" aria-label="Camera controls">
+            <button class="btn cam-btn" id="btnStream" type="button">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              <span id="btnStreamLabel">STREAM</span>
+            </button>
+            <button class="btn cam-btn" id="btnSnapshot" type="button">
+              <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9"/></svg>
+              SNAP
+            </button>
+            <button class="btn cam-btn" id="btnRecord" type="button">
+              <span class="rec-dot"></span>
+              REC
+            </button>
+            <div class="cam-quality-wrap">
+              <button class="btn cam-btn btn-select" id="btnQuality" type="button">
+                <span class="select-label" id="btnQualityLabel">640×480</span>
+                <span class="btn-chevron"></span>
+              </button>
+              <div class="quality-menu" id="qualityMenu" hidden>
+                <div class="quality-menu-item" data-quality="1600x1200|10">1600 × 1200 — 10 FPS</div>
+                <div class="quality-menu-item" data-quality="1280x1024|10">1280 × 1024 — 10 FPS</div>
+                <div class="quality-menu-item" data-quality="1024x768|10">1024 × 768 — 10 FPS</div>
+                <div class="quality-menu-item" data-quality="800x600|20">800 × 600 — 20 FPS</div>
+                <div class="quality-menu-item" data-quality="640x480|20">640 × 480 — 20 FPS</div>
+                <div class="quality-menu-item" data-quality="320x240|30">320 × 240 — 30 FPS</div>
+                <div class="quality-menu-item" data-quality="320x240|15">320 × 240 — 15 FPS</div>
+                <div class="quality-menu-item-sep"></div>
+                <div class="quality-menu-item" data-quality="low">LOW — VGA</div>
+                <div class="quality-menu-item" data-quality="med">MED — SVGA</div>
+                <div class="quality-menu-item" data-quality="high">HIGH — XGA</div>
+                <div class="quality-menu-item-sep"></div>
+                <div class="quality-menu-item" data-quality="0">OFF — STREAM DISABLED</div>
+              </div>
+            </div>
+            <button class="btn cam-btn" id="btnReconnectCam" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6"/></svg>
+              RECONNECT
+            </button>
+            <button class="cam-fullscreen-btn" id="btnFullscreen" role="button" tabindex="0" aria-label="Fullscreen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="cam-reconnect" id="camReconnect" hidden>
+          <span class="spin-dot"></span>
+          <span id="camReconnectText">RECONNECTING TO VIDEO STREAM…</span>
+        </div>
+        <div class="cam-guides">
+          <span class="cg-vert"></span>
+          <span class="cg-dash dash-l"></span>
+          <span class="cg-dash dash-r"></span>
+        </div>
+
+        <!-- GEAR SLIDER (over camera view) -->
+        <div class="gear-selector" id="gearSelector" aria-label="Gear selector">
+          <div class="gear-box">
+            <div class="gear-rail" id="gearRail">
+              <span class="gear-notch" data-gear="P"></span>
+              <span class="gear-notch" data-gear="R"></span>
+              <span class="gear-notch" data-gear="N"></span>
+              <span class="gear-notch" data-gear="D"></span>
+              <div class="gear-lever" id="gearLever" role="slider" tabindex="0" aria-label="Gear lever" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0">
+                <span class="gear-knob" id="gearKnob" aria-hidden="true">P</span>
+              </div>
+            </div>
+            <div class="gear-gate" aria-hidden="true">
+              <span class="gate-letter" data-gear="P">P</span>
+              <span class="gate-letter" data-gear="R">R</span>
+              <span class="gate-letter" data-gear="N">N</span>
+              <span class="gate-letter" data-gear="D">D</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DRIVING + CONTROL DECK ============ -->
+    <section class="deck" aria-label="driving controls">
+
+      <!-- WHEEL PANEL: lights + indicators + pedals + steering wheel + speedo -->
+      <div class="wheel-panel">
+
+        <!-- LEFT CLUSTER: indicators, hazard, brake / rev / park lights -->
+        <div class="panel-cluster cluster-left" aria-label="Indicators and brake lights">
+          <div class="cluster-row">
+            <div class="cp-item">
+              <button class="round-btn ind-btn" id="btnLeftInd" type="button" aria-label="Left indicator">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M15 6l-6 6 6 6"/>
+                </svg>
+              </button>
+              <span class="cp-label">LEFT</span>
+            </div>
+            <div class="cp-item">
+              <button class="round-btn" id="btnHazard" type="button" aria-label="Hazard lights">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 4L21 20H3L12 4z"/>
+                  <path d="M12 10v4"/>
+                </svg>
+                <span class="ind-blip" data-blip="hazard-blip"></span>
+              </button>
+              <span class="cp-label">HAZARD</span>
+            </div>
+            <div class="cp-item">
+              <button class="round-btn ind-btn" id="btnRightInd" type="button" aria-label="Right indicator">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M9 6l6 6-6 6"/>
+                </svg>
+              </button>
+              <span class="cp-label">RIGHT</span>
+            </div>
+          </div>
+          <div class="cluster-row">
+            <div class="cp-item">
+              <button class="round-btn small-ind-btn brake-btns" id="btnBrakeLight" type="button" aria-label="Brake light">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M7 12l5 5 5-5M7 17h10M7 7l5 5 5-5"/>
+                </svg>
+              </button>
+              <span class="cp-label">BRAKE</span>
+            </div>
+            <div class="cp-item">
+              <button class="round-btn small-ind-btn brake-btns" id="btnReverseLight" type="button" aria-label="Reverse light">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M17 12l-5-5M17 12l-5 5M12 17v0"/>
+                </svg>
+              </button>
+              <span class="cp-label">REV</span>
+            </div>
+            <div class="rock-item park-item">
+              <div class="rocker" data-toggle="parkinglights">
+                <div class="rocker-thumb"></div>
+              </div>
+              <div class="rock-info">
+                <span class="rock-label">PARK</span>
+                <span class="rock-led" data-led="parkinglights"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PEDALS -->
+        <div class="pedals">
+          <div class="pedal-box">
+            <div class="pedal brake-pedal" id="brakePedal">
+              <span class="pedal-tag">BRAKE</span>
+              <div class="pedal-face">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <circle cx="12" cy="12" r="8"/>
+                  <path d="M12 8v4l2.5 2.5M8.5 12a3.5 3.5 0 0 0 3.5 3.5"/>
+                </svg>
+              </div>
+              <div class="pedal-rail"><span class="rail-fill" id="brakeRailFill"></span></div>
+              <span class="pedal-mode" id="brakeSub">REVERSE + STOP</span>
+            </div>
+            <div class="pedal gas-pedal" id="gasPedal">
+              <span class="pedal-tag">ACCEL</span>
+              <div class="pedal-face">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M4 20c2-4 5-6 8-6s6 2 8 6"/>
+                  <path d="M17 5l4 4-4 4"/>
+                </svg>
+              </div>
+              <div class="pedal-rail"><span class="rail-fill" id="gasRailFill"></span></div>
+              <span class="pedal-mode">THROTTLE</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- STEERING WHEEL + COLUMN -->
+        <div class="wheel-wrap" id="wheelWrap">
+          <div class="steering-wheel" id="steeringWheel" role="slider" aria-label="Steering wheel" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+            <span class="wheel-topmark"></span>
+            <span class="wheel-grip g-l"></span>
+            <span class="wheel-grip g-r"></span>
+            <div class="wheel-spokes">
+              <span class="w-spoke" style="--rot: 270deg"></span>
+              <span class="w-spoke" style="--rot: 30deg"></span>
+              <span class="w-spoke" style="--rot: 150deg"></span>
+            </div>
+            <div class="wheel-hub" id="wheelHub" role="button" tabindex="0" aria-label="Horn">
+              <span class="wheel-emblem">
+                <img class="wheel-emblem-logo" src="assets/auroratransparent.png" alt="Aurora" draggable="false" />
+              </span>
+            </div>
+          </div>
+          <div class="wheel-column">
+            <div class="col-stalk cs-r ind-stalk" id="indStalk" role="slider" tabindex="0" aria-label="Indicator stalk — push up for LEFT, pull down for RIGHT (press to cancel)" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="0">
+              <span class="stalk-ball" aria-hidden="true"><span class="stalk-led"></span></span>
+            </div>
+            <div class="col-stalk cs-r" title="Light stalk"></div>
+            <div class="col-shroud"></div>
+            <div class="col-tube"></div>
+          </div>
+          <div class="wheel-indicator" id="wheelIndicator">
+            <span class="wheel-state" id="wheelState">CENTER</span>
+          </div>
+        </div>
+
+        <!-- SPEEDOMETER -->
+        <div class="speedo">
+          <div class="gauge gauge-speed">
+            <div class="gauge-tick gauge-tick-speed" data-label="km/h"></div>
+            <div class="gauge-ring">
+              <canvas id="gaugeSpeedCanvas" width="220" height="220"></canvas>
+              <div class="gauge-value">
+                <div class="gauge-number" id="gaugeSpeedNumber">0</div>
+                <div class="gauge-unit">km/h</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT CLUSTER: headlights + lighting toggles -->
+        <div class="panel-cluster cluster-right" aria-label="Lights">
+          <div class="rock-item">
+            <div class="rocker" data-toggle="headlights">
+              <div class="rocker-thumb"></div>
+            </div>
+            <div class="rock-info">
+              <span class="rock-label">HEADLIGHTS</span>
+              <span class="rock-led" data-led="headlights"></span>
+            </div>
+          </div>
+          <div class="rock-item">
+            <div class="rocker" data-toggle="highbeam">
+              <div class="rocker-thumb"></div>
+            </div>
+            <div class="rock-info">
+              <span class="rock-label">HIGH BEAM</span>
+              <span class="rock-led" data-led="highbeam"></span>
+            </div>
+          </div>
+          <div class="rock-item">
+            <div class="rocker" data-toggle="foglights">
+              <div class="rocker-thumb"></div>
+            </div>
+            <div class="rock-info">
+              <span class="rock-label">FOG</span>
+              <span class="rock-led" data-led="foglights"></span>
+            </div>
+          </div>
+          <div class="rock-item">
+            <div class="rocker" data-toggle="interiorlight">
+              <div class="rocker-thumb"></div>
+            </div>
+            <div class="rock-info">
+              <span class="rock-label">INTERIOR</span>
+              <span class="rock-led" data-led="interiorlight"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FULLSCREEN CAM VIEW ============ -->
+  <div class="cam-fs" id="camFs" hidden>
+    <img id="camFeedFs" class="cam-fs-feed" alt="ESP32-CAM live feed fullscreen" />
+    <div class="cam-fs-bar">
+      <span id="camFsStatus">STANDBY</span>
+      <button class="btn btn-sm" id="btnFsClose" type="button">EXIT FULLSCREEN</button>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

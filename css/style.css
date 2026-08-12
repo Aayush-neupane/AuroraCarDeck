@@ -1,0 +1,1592 @@
+/* ============================================================
+   AURORA — ESP32 Vehicle Control HMI
+   Industrial automotive design system
+   No-scroll cockpit layout: controls overlap the camera feed
+   ============================================================ */
+
+:root {
+  --bg-0: #0a0a0b;
+  --bg-1: #101113;
+  --bg-2: #16181b;
+  --bg-3: #1d2024;
+  --surface: #131517;
+  --line-1: #26292e;
+  --line-2: #34383f;
+  --text-1: #e8eaed;
+  --text-2: #9aa0a8;
+  --text-3: #5b616a;
+  --accent: #2f7df6;
+  --ok: #22a064;
+  --warn: #d9a514;
+  --danger: #d64545;
+  --danger-bright: #ff5a4d;
+  --radius: 4px;
+  --font-mono: "SF Mono", "JetBrains Mono", "Roboto Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-num: "SF Mono", "Roboto Mono", "JetBrains Mono", Menlo, monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html {
+  height: 100%;
+  background: var(--bg-0);
+}
+
+body {
+  height: 100dvh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 750px at 18% -12%, rgba(64,122,255,0.15), transparent 60%),
+    radial-gradient(900px 650px at 88% 112%, rgba(26,185,200,0.10), transparent 60%),
+    radial-gradient(1400px 900px at 50% 42%, rgba(38,80,170,0.08), transparent 65%),
+    var(--bg-0);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* ============ MOBILE ORIENTATION LOCK (rotate page to landscape) ============ */
+/* On portrait phones (width <= 480px) the whole HMI is rotated 90deg so the
+   cockpit always renders landscape. JS adds `.rot` and sets --rot-vh/--rot-vw
+   to the live visual viewport so the rotated frame exactly matches the
+   visible screen (tracks the mobile browser URL bar as it expands/collapses).
+   Transform math: rotate(90deg) translateY(-100vw) maps the 100vh x 100vw
+   box onto the portrait viewport without any scrollbars or blank areas. */
+html.rot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--rot-vh, 100vh);
+  height: var(--rot-vw, 100vw);
+  overflow: hidden;
+  background: var(--bg-0);
+}
+html.rot body {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: var(--rot-vh, 100vh);
+  height: var(--rot-vw, 100vw);
+  overflow: hidden;
+  transform-origin: 0 0;
+  transform: rotate(90deg) translateY(calc(-1 * var(--rot-vw, 100vw)));
+}
+
+/* ============ LOADING SCREEN ============ */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-direction: column;
+  background-color: var(--bg-0);
+  background-image: url("../assets/aurora.png");
+  background-position: center 18%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+.loader.done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.loader-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(14px, 2.5vh, 22px);
+  width: min(300px, 55vw);
+  padding-bottom: clamp(18px, 4vh, 40px);
+}
+.loader-progress { width: 100%; }
+.loader-pct {
+  font-family: var(--font-mono);
+  font-size: clamp(9px, 1vw, 11px);
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  color: #eaf1ff;
+  text-align: center;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 10px rgba(47,125,246,0.65);
+}
+.loader-track {
+  width: 100%;
+  height: 6px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.10);
+  border: 1px solid rgba(255,255,255,0.22);
+  box-shadow: inset 0 1px 4px rgba(0,0,0,0.6);
+  overflow: hidden;
+  position: relative;
+}
+.loader-bar {
+  height: 100%;
+  width: 0%;
+  border-radius: 99px;
+  position: relative;
+  background: linear-gradient(90deg, #1d5fd0, #2f7df6 40%, #7eb0ff 75%, #cfe3ff);
+  transition: width 0.3s ease;
+}
+.loader-bar::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  right: -3px;
+  width: 8px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 14px 4px rgba(140,190,255,0.95);
+}
+.loader-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 32%, rgba(255,255,255,0.7) 50%, transparent 68%);
+  background-size: 240% 100%;
+  animation: loaderShine 1.3s linear infinite;
+}
+.loader-sub {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  letter-spacing: 0.34em;
+  color: rgba(255,255,255,0.55);
+  text-align: center;
+  margin-top: 8px;
+}
+html.rot .loader-sub { display: none; }
+/* On rotated portrait phones the whole page is turned 90deg, so the layout's
+   "bottom" ends up at the LEFT side of the physical screen. The loader rides
+   along sideways with the HMI: the stage hangs off that bottom edge
+   (screen-left, vertically centered) and the wheel + bar stack sideways —
+   the wheel toward the layout top (screen right), the bar below it filling
+   vertically. Units are vh-based because in the rotated frame vw/vh still
+   resolve against the unrotated viewport. */
+html.rot .loader {
+  justify-content: flex-start;
+  align-items: flex-start;
+  padding: 0;
+}
+html.rot .loader-stage {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: min(120px, 14vh);
+  gap: calc(8px + 1vh);
+  padding-bottom: 0;
+}
+html.rot .loader-wheel { --lw: clamp(34px, 6.5vh, 52px); }
+html.rot .loader-progress { width: 100%; }
+.loader-wheel {
+  --lw: clamp(44px, 9vw, 64px);
+  position: relative;
+  width: var(--lw);
+  height: var(--lw);
+  animation: loaderSpin 1.5s linear infinite;
+}
+.loader-rim {
+  position: absolute;
+  inset: 0;
+  border: calc(var(--lw) * 0.115) solid rgba(235,241,252,0.9);
+  border-radius: 50%;
+  box-shadow: 0 6px 26px rgba(0,0,0,0.55), inset 0 0 16px rgba(0,0,0,0.45);
+}
+.loader-spokes { position: absolute; inset: 0; }
+.loader-spokes i {
+  position: absolute;
+  left: 47.5%;
+  top: 50%;
+  width: 26%;
+  height: calc(var(--lw) * 0.094);
+  margin-top: calc(var(--lw) * -0.047);
+  transform-origin: 9% center;
+  background: linear-gradient(180deg, #e8edf5, #9aa5b5);
+  border-radius: 6px;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.3), 0 1px 2px rgba(0,0,0,0.5);
+}
+.loader-spokes i:nth-child(1) { width: 32%; transform: rotate(270deg); }
+.loader-spokes i:nth-child(2) { transform: rotate(30deg); }
+.loader-spokes i:nth-child(3) { transform: rotate(150deg); }
+.loader-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--lw) * 0.42);
+  height: calc(var(--lw) * 0.42);
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 30%, #3c4248, #17191d 75%);
+  border: 1px solid rgba(255,255,255,0.28);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.loader-hub-logo { width: 100%; height: 100%; object-fit: cover; }
+@keyframes loaderSpin { to { transform: rotate(360deg); } }
+@keyframes loaderShine { to { background-position: -240% 0; } }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-1); }
+::-webkit-scrollbar-thumb { background: var(--line-2); border: 2px solid var(--bg-1); border-radius: 6px; }
+
+button { font-family: inherit; color: inherit; cursor: pointer; }
+
+/* ============ BUTTONS ============ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-2);
+  color: var(--text-1);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: background 0.12s, border-color 0.12s, filter 0.12s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--bg-3); border-color: #4a4f58; }
+.btn:active { filter: brightness(0.85); }
+.btn svg { width: 15px; height: 15px; }
+.btn[disabled] { opacity: 0.45; pointer-events: none; }
+.btn-sm { padding: 5px 10px; font-size: 10px; }
+.btn-select { position: relative; }
+
+/* ============ TOP CONNECTION BAR (transparent, overlays the video) ============ */
+.conn-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(180deg, rgba(10,10,11,0.55), rgba(10,10,11,0.15) 75%, transparent);
+  border-bottom: 1px solid rgba(38,41,46,0.35);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  padding: 6px 14px;
+  z-index: 60;
+}
+.conn-left { display: flex; align-items: center; gap: 10px; }
+.brand-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  display: block;
+  filter: drop-shadow(0 0 8px rgba(47,125,246,0.55));
+}
+.brand-name { font-weight: 800; letter-spacing: 0.18em; font-size: 12px; color: var(--text-1); }
+.brand-sub { font-size: 8px; letter-spacing: 0.22em; color: var(--text-3); margin-top: 1px; }
+.conn-center { display: flex; align-items: center; gap: 12px; }
+.conn-state {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  padding: 2px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+  background: var(--bg-2);
+}
+.conn-state.on { color: var(--ok); border-color: var(--ok); }
+.conn-state.off { color: var(--text-3); }
+.conn-state.reco { color: var(--warn); border-color: var(--warn); }
+.conn-latency { font-family: var(--font-mono); font-size: 10px; color: var(--text-2); }
+.conn-right { display: flex; align-items: center; gap: 10px; }
+.ws-url { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); }
+
+/* ============ COCKPIT LAYOUT (fixed viewport, no scroll) ============ */
+.cockpit {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(150px, 1fr) auto;
+  grid-template-areas:
+    "windshield"
+    "deck";
+  gap: 6px;
+  padding: 6px 10px 4px;
+  max-width: 1460px;
+  width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+}
+.windshield { grid-area: windshield; position: relative; min-height: 0; }
+.deck { grid-area: deck; }
+
+/* ============ WINDSHIELD (CAMERA) ============ */
+.cam-view {
+  position: absolute;
+  inset: 0;
+  background: #050506;
+  border: 1px solid var(--line-1);
+  overflow: hidden;
+}
+.cam-feed {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #050506;
+  display: none;
+}
+.cam-view.live .cam-feed { display: block; }
+.cam-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.3em;
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+.cam-placeholder-icon { width: 40px; height: 40px; }
+.cam-view.live .cam-placeholder { display: none; }
+
+/* HUD bar over the feed */
+.cam-overlay {
+  position: absolute;
+  top: 40px; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.12) 65%, transparent);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  pointer-events: none;
+  z-index: 3;
+}
+.cam-badge-rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--danger-bright);
+  font-weight: 700;
+}
+.cam-badge-rec[hidden] { display: none; }
+.cam-rec-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger-bright); animation: blink 1.1s infinite; }
+.cam-hud { margin-left: 6px; color: var(--text-2); }
+.cam-status { font-weight: 600; }
+.cam-status.ok { color: var(--ok); }
+.cam-status.warn { color: var(--warn); }
+
+.cam-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  pointer-events: auto;
+  flex-wrap: wrap;
+}
+.cam-btn {
+  padding: 4px 8px;
+  font-size: 9px;
+  gap: 5px;
+  background: rgba(16,17,19,0.72);
+  backdrop-filter: none;
+}
+.cam-btn svg { width: 12px; height: 12px; }
+.cam-fullscreen-btn {
+  width: 26px; height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16,17,19,0.72);
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  color: var(--text-2);
+  cursor: pointer;
+  margin-left: 2px;
+}
+.cam-fullscreen-btn:hover { color: var(--text-1); border-color: #4a4f58; }
+.cam-fullscreen-btn svg { width: 13px; height: 13px; }
+
+.cam-reconnect {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(5,5,6,0.86);
+  color: var(--warn);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  z-index: 4;
+}
+.cam-reconnect[hidden] { display: none; }
+.spin-dot {
+  width: 12px; height: 12px;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--warn);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+/* Driving-assist camera guides */
+.cam-guides {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.35s;
+  pointer-events: none;
+  z-index: 2;
+}
+.cam-view.live .cam-guides { opacity: 1; }
+.cg-vert {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.22) 30%, rgba(255,255,255,0.28) 70%, rgba(255,255,255,0) 100%);
+}
+.cg-dash {
+  position: absolute;
+  top: 72%;
+  left: 50%;
+  width: 150px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-top: 1px dashed rgba(255,255,255,0.3);
+}
+.cg-dash::before, .cg-dash::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  width: 42px;
+  height: 20px;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+}
+.cg-dash::before { left: 50%; margin-left: -86px; }
+.cg-dash::after { right: 50%; margin-right: -86px; }
+
+.rec-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--danger-bright); }
+.rec-dot.pulsing { animation: blink 1s infinite; }
+.btn-chevron::after {
+  content: "";
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 4px solid var(--text-2);
+  margin-left: 4px;
+}
+
+.cam-quality-wrap { position: relative; }
+.quality-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  padding: 4px;
+  min-width: 200px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.quality-menu[hidden] { display: none; }
+.quality-menu-item {
+  padding: 7px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: 2px;
+}
+.quality-menu-item:hover { background: var(--bg-3); color: var(--text-1); }
+.quality-menu-item:active { color: var(--accent); }
+.quality-menu-item-sep { height: 1px; background: var(--line-1); margin: 4px 8px; }
+
+/* ============ DRIVING DECK (overlaps camera) ============ */
+.deck {
+  position: relative;
+  z-index: 5;
+  margin-top: -18px;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "wheelpanel"
+    "controls";
+  gap: 6px;
+  align-items: end;
+}
+
+/* ---- WHEEL PANEL (pedals + steering wheel together) ---- */
+.wheel-panel {
+  grid-area: wheelpanel;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 48px;
+  background: linear-gradient(180deg, var(--bg-1) 0%, #0c0d0f 100%);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  padding: 8px 16px 10px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 26px rgba(0,0,0,0.35);
+}
+.wheel-panel .pedals {
+  width: 150px;
+  flex-shrink: 0;
+  align-self: flex-end;
+  margin-right: auto;
+  position: relative;
+  z-index: 7;
+}
+.wheel-panel .pedal-box {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+.wheel-panel .steering-wheel {
+  --ws: min(150px, 30vmin);
+  width: var(--ws);
+  height: var(--ws);
+}
+.wheel-panel .wheel-wrap {
+  gap: 5px;
+  margin-right: 84px;
+}
+.wheel-panel .wheel-column {
+  margin-top: 2px;
+}
+.wheel-panel .wheel-indicator {
+  margin-top: 2px;
+}
+
+/* ---- SIDE CLUSTERS (indicators/lights on the main panel) ---- */
+.panel-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 4px 6px;
+}
+.panel-cluster .cp-item { gap: 2px; }
+.panel-cluster .rock-item { gap: 7px; }
+.panel-cluster .rock-label { white-space: nowrap; }
+.cluster-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.cluster-row .cp-item { gap: 1px; }
+.cluster-left { align-self: flex-end; margin-right: auto; }
+.cluster-right { margin-left: auto; }
+
+/* ---- SPEEDOMETER (inside main wheel panel) ---- */
+.speedo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-end;
+  margin-left: auto;
+  position: relative;
+}
+.wheel-panel .speedo {
+  margin-top: 0;
+}
+
+/* ---- GEAR SLIDER (overlay on camera view) ---- */
+.gear-selector {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  z-index: 6;
+  padding: 6px;
+}
+.gear-box {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+}
+.gear-rail {
+  position: relative;
+  width: 36px;
+  height: 100%;
+  min-height: 148px;
+  background: linear-gradient(180deg, #171a1e, #101216 55%, #171a1e);
+  border: 1px solid #2c3036;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+.gear-rail::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  bottom: 3px;
+  transform: translateX(-50%);
+  width: 2px;
+  background: repeating-linear-gradient(180deg, rgba(255,255,255,0.07) 0 10px, transparent 10px 37px);
+  pointer-events: none;
+}
+.gear-notch {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  border: 2px solid #3a3f46;
+  border-radius: 50%;
+  background: #17191d;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  pointer-events: none;
+  z-index: 1;
+}
+.gear-notch:nth-child(1) { top: 5%; }
+.gear-notch:nth-child(2) { top: 35%; }
+.gear-notch:nth-child(3) { top: 65%; }
+.gear-notch:nth-child(4) { top: 95%; }
+.gear-notch.active {
+  border-color: var(--accent);
+  background: rgba(47,125,246,0.35);
+  box-shadow: 0 0 10px rgba(47,125,246,0.55);
+}
+.gear-lever {
+  position: absolute;
+  left: 50%;
+  top: 5%;
+  width: 30px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  touch-action: none;
+  cursor: grab;
+  transition: top 0.22s cubic-bezier(0.34, 1.3, 0.5, 1);
+}
+.gear-lever:active, .gear-lever.dragging { cursor: grabbing; }
+.gear-lever.no-anim { transition: none; }
+.gear-knob {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 28%, #393c43, #191b20 62%, #101216);
+  border: 1px solid #4a5058;
+  box-shadow:
+    0 5px 14px rgba(0,0,0,0.6),
+    inset 0 2px 3px rgba(255,255,255,0.14),
+    inset 0 -4px 8px rgba(0,0,0,0.45);
+  font-family: var(--font-num);
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  pointer-events: none;
+}
+.gear-knob::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px dashed rgba(255,255,255,0.16);
+  border-radius: 50%;
+}
+.gear-lever::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 34px;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 26px;
+  background: linear-gradient(90deg, #8b939c, #dde2e8 45%, #6d747c);
+  border-radius: 0 0 3px 3px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+.gear-lever.pop .gear-knob { animation: gearPop 0.28s ease; }
+@keyframes gearPop {
+  0% { transform: translateX(-50%) scale(1); }
+  35% { transform: translateX(-50%) scale(1.16); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+.gear-gate {
+  position: relative;
+  width: 20px;
+  height: 100%;
+  min-height: 148px;
+}
+.gate-letter {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+  font-family: var(--font-num);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-3);
+  letter-spacing: 0.05em;
+  transition: color 0.15s, text-shadow 0.15s;
+}
+.gate-letter:nth-child(1) { top: 5%; }
+.gate-letter:nth-child(2) { top: 35%; }
+.gate-letter:nth-child(3) { top: 65%; }
+.gate-letter:nth-child(4) { top: 95%; }
+.gate-letter.active {
+  color: var(--accent);
+  text-shadow: 0 0 8px rgba(47,125,246,0.6);
+}
+
+/* ---- STEERING WHEEL + COLUMN ---- */
+.wheel-wrap {
+  grid-area: wheel;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+.wheel-wrap::before {
+  content: "";
+  position: absolute;
+  left: 50%; top: 46%;
+  transform: translate(-50%, -50%);
+  width: 86%;
+  height: 72%;
+  background: radial-gradient(closest-side, rgba(0,0,0,0.55), rgba(0,0,0,0.0));
+  border-radius: 50%;
+  z-index: -1;
+  pointer-events: none;
+}
+.steering-wheel {
+  --ws: min(150px, 30vmin);
+  width: var(--ws);
+  height: var(--ws);
+  border-radius: 50%;
+  position: relative;
+  touch-action: none;
+  cursor: grab;
+  z-index: 2;
+  user-select: none;
+}
+.steering-wheel:active, .steering-wheel.dragging { cursor: grabbing; }
+
+/* Main rim */
+.steering-wheel::before {
+  content: "";
+  position: absolute;
+  inset: 2.5%;
+  border: calc(var(--ws) * 0.08) solid #1e2228;
+  border-radius: 50%;
+  box-shadow:
+    0 4px 22px rgba(0,0,0,0.65),
+    inset 0 0 14px rgba(0,0,0,0.75),
+    inset 0 0 0 1px rgba(255,255,255,0.05);
+}
+.steering-wheel::after {
+  content: "";
+  position: absolute;
+  inset: 3%;
+  border: 2px solid rgba(255,255,255,0.06);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.wheel-topmark {
+  position: absolute;
+  left: 50%;
+  top: 1.5%;
+  transform: translateX(-50%);
+  width: calc(var(--ws) * 0.147);
+  height: calc(var(--ws) * 0.087);
+  background: linear-gradient(180deg, #3d8bfc, #2459a8);
+  border-radius: 0 0 5px 5px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.25);
+  z-index: 3;
+}
+.wheel-grip {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: calc(var(--ws) * 0.25);
+  height: calc(var(--ws) * 0.32);
+  border-radius: 9px;
+  background: linear-gradient(90deg, #23262c, #31353c 50%, #1c1f24);
+  border: 1px solid #3a3f47;
+  box-shadow: inset 0 0 8px rgba(0,0,0,0.7), 0 3px 8px rgba(0,0,0,0.5);
+  z-index: 2;
+}
+.wheel-grip.g-l { left: 5.5%; }
+.wheel-grip.g-r { right: 5.5%; }
+.wheel-grip::after {
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--ws) * 0.027); height: 40%;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.09) 0 2px, transparent 2px 5px);
+  border-radius: 2px;
+}
+
+.wheel-spokes { position: absolute; inset: 0; }
+.w-spoke {
+  position: absolute;
+  left: 47.5%;
+  top: 50%;
+  width: 26%;
+  height: calc(var(--ws) * 0.06);
+  margin-top: calc(var(--ws) * -0.03);
+  transform-origin: 9% center;
+  transform: rotate(var(--rot));
+  background: linear-gradient(180deg, #262a30, #171a1e);
+  border-radius: 6px;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.05), 0 1px 2px rgba(0,0,0,0.5);
+}
+.w-spoke:nth-child(1) { width: 32%; }
+
+.wheel-hub {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(var(--ws) * 0.41);
+  height: calc(var(--ws) * 0.41);
+  background: radial-gradient(circle at 40% 30%, #23262b, #14161a 70%);
+  border: 1px solid #3d424a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  box-shadow: inset 0 0 12px rgba(0,0,0,0.8), 0 2px 6px rgba(0,0,0,0.5);
+  cursor: pointer;
+  z-index: 4;
+  transition: background 0.1s, color 0.1s;
+}
+.wheel-hub:hover, .wheel-hub:active { background: radial-gradient(circle at 40% 30%, #2b3250, #1a2233 70%); color: var(--accent); }
+.wheel-emblem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--ws) * 0.293);
+  height: calc(var(--ws) * 0.293);
+  border-radius: 50%;
+  border: 1px dashed rgba(255,255,255,0.14);
+  background: radial-gradient(circle at 40% 32%, #23262b, #12141a 75%);
+  overflow: hidden;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.65);
+}
+.wheel-emblem-logo { width: 100%; height: 100%; object-fit: cover; }
+.wheel-hub.active { background: radial-gradient(circle at 40% 30%, #3d4a6e, #20293d 70%); color: var(--accent); }
+
+/* Column + shroud + stalks */
+.wheel-column {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 92px;
+  z-index: 1;
+}
+.col-shroud {
+  width: 96px;
+  height: 20px;
+  background: linear-gradient(180deg, #1e2126, #121417);
+  border: 1px solid var(--line-2);
+  border-radius: 4px 4px 2px 2px;
+  clip-path: polygon(0 0, 100% 0, 80% 100%, 20% 100%);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.col-tube {
+  width: 24px;
+  height: 22px;
+  margin-top: 1px;
+  background: linear-gradient(90deg, #101216, #23262b 45%, #101216);
+  border: 1px solid var(--line-1);
+  border-radius: 0 0 4px 4px;
+}
+.col-stalk {
+  position: absolute;
+  top: 5px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #2a2d33, #17191d);
+  border: 1px solid #34383f;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+.col-stalk::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 4px;
+  background: var(--text-3);
+  border-radius: 2px;
+}
+.cs-l { left: -52px; width: 48px; border-radius: 3px 0 0 3px; }
+.cs-l::before { right: -1px; top: 0; bottom: 0; }
+.cs-r { right: -54px; width: 50px; border-radius: 0 3px 3px 0; }
+.cs-r::before { left: -1px; }
+
+/* Interactive indicator stalk (lever) */
+.ind-stalk {
+  top: 46%;
+  right: -98px;
+  left: auto;
+  width: 98px;
+  height: 10px;
+  margin-top: -5px;
+  transform-origin: 14% 50%;
+  transform: rotate(-4deg);
+  border-radius: 3px;
+  cursor: pointer;
+  touch-action: none;
+  transition: transform 0.3s cubic-bezier(0.34, 1.35, 0.5, 1), background 0.16s, border-color 0.16s, box-shadow 0.16s;
+  z-index: 5;
+  outline: none;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.06) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, #3d424a 0%, #26292f 48%, #14161a 100%);
+  border: 1px solid #202429;
+  box-shadow:
+    0 7px 12px rgba(0,0,0,0.4),
+    0 2px 4px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -3px 6px rgba(0,0,0,0.45);
+}
+.ind-stalk:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+/* Touch screens: beef up the lever shaft + knob so the slider is easy to grab */
+@media (hover: none) and (pointer: coarse) {
+  .ind-stalk { height: 16px; margin-top: -8px; }
+  .stalk-ball { width: 30px; height: 18px; right: -15px; }
+}
+
+/* Pivot boss — the stalk exits the steering column here */
+.ind-stalk::before {
+  content: "";
+  position: absolute;
+  left: -12px;
+  right: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, #42474f, #1b1e23 72%);
+  border: 1px solid #2b3036;
+  box-shadow: inset 0 2px 5px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.5);
+}
+
+/* Rubber gaiter collar between boss and shaft */
+.ind-stalk::after {
+  content: "";
+  position: absolute;
+  left: 6px;
+  right: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 15px;
+  background: linear-gradient(180deg, #2b2e34, #14161a);
+  clip-path: polygon(100% 32%, 0 0, 0 100%, 100% 68%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+.ind-stalk.up {
+  transform: rotate(-11deg);
+  background:
+    repeating-linear-gradient(90deg, rgba(120,170,255,0.07) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, #2c4a72 0%, #182840 58%, #0d1826 100%);
+  border-color: rgba(90,155,255,0.7);
+  box-shadow:
+    0 9px 14px rgba(0,0,0,0.38),
+    0 2px 10px rgba(80,150,255,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+}
+.ind-stalk.down {
+  transform: rotate(17deg);
+  background:
+    repeating-linear-gradient(90deg, rgba(255,180,90,0.07) 0 2px, transparent 2px 5px),
+    linear-gradient(180deg, #4a3a20 0%, #2e2412 58%, #1a140a 100%);
+  border-color: rgba(255,165,75,0.7);
+  box-shadow:
+    0 9px 14px rgba(0,0,0,0.38),
+    0 2px 10px rgba(255,150,50,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.14);
+}
+
+/* Lever tip: flared end knob */
+.stalk-ball {
+  position: absolute;
+  left: auto;
+  right: -16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 17px;
+  border-radius: 40% 12px 12px 40%;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.06), transparent 55%),
+    radial-gradient(circle at 28% 22%, #5a616b, #202329 78%);
+  border: 1px solid #2f343b;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.55), inset 0 1px 2px rgba(255,255,255,0.22), inset 0 -3px 6px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
+.stalk-ball::before {
+  content: "";
+  position: absolute;
+  left: 100%;
+  right: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 13px;
+  height: 11px;
+  background: linear-gradient(90deg, #191c21, #2a2d33);
+  clip-path: polygon(0 8%, 100% 0, 100% 100%, 0 92%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+}
+
+/* LED inside the knob */
+.stalk-led {
+  position: absolute;
+  left: auto;
+  right: 24%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #14161a;
+  border: 1px solid #33383f;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.8);
+  pointer-events: none;
+}
+.ind-stalk.up .stalk-led {
+  background: var(--ok);
+  border-color: #2f8a5c;
+  box-shadow: 0 0 8px rgba(34,160,100,0.95), inset 0 1px 2px rgba(0,0,0,0.3);
+  animation: blink 0.85s step-end infinite;
+}
+.ind-stalk.down .stalk-led {
+  background: #ffa13d;
+  border-color: #a5671f;
+  box-shadow: 0 0 8px rgba(255,150,50,0.95), inset 0 1px 2px rgba(0,0,0,0.3);
+  animation: blink 0.85s step-end infinite;
+}
+
+.wheel-indicator {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.24em;
+  color: var(--text-2);
+  padding: 2px 10px;
+  border: 1px solid var(--line-1);
+  border-radius: 2px;
+  background: var(--bg-1);
+  z-index: 1;
+}
+.wheel-indicator.turned { color: var(--accent); border-color: var(--accent); }
+
+/* ---- PEDALS ---- */
+.pedals {
+  grid-area: pedals;
+  display: flex;
+  justify-content: center;
+  height: 100%;
+}
+.pedal-box {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  justify-content: center;
+  background: linear-gradient(180deg, var(--bg-1) 0%, #0c0d0f 100%);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  padding: 8px 14px 6px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+  height: 100%;
+  width: 100%;
+}
+.pedal { display: flex; flex-direction: column; align-items: center; gap: 4px; touch-action: none; cursor: pointer; }
+.pedal-tag {
+  font-size: 7.5px;
+  letter-spacing: 0.3em;
+  color: var(--text-3);
+  font-weight: 700;
+  padding: 2px 8px;
+  border: 1px solid var(--line-1);
+  border-radius: 2px;
+  background: var(--bg-2);
+}
+.brake-pedal .pedal-tag { border-color: rgba(255,90,77,0.25); color: #b9827c; }
+.gas-pedal .pedal-tag { border-color: rgba(47,125,246,0.25); color: #6d93c8; }
+
+.pedal-face {
+  position: relative;
+  width: 54px;
+  height: 88px;
+  background: linear-gradient(90deg, #23262b, #3c414a 46%, #202329);
+  border: 1px solid #454c56;
+  border-radius: 6px 6px 3px 3px;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -6px 12px rgba(0,0,0,0.35);
+  cursor: pointer;
+  touch-action: none;
+  transition: transform 0.07s, border-color 0.07s, box-shadow 0.07s;
+}
+.pedal-face::before {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: 4px 4px 2px 2px;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,0.45) 0 2px, transparent 2px 6px);
+  pointer-events: none;
+}
+.pedal-face svg {
+  position: absolute;
+  left: 50%; top: 12px;
+  transform: translateX(-50%);
+  width: 22px; height: 22px;
+  color: var(--text-3);
+  transition: color 0.1s;
+}
+.gas-pedal .pedal-face { width: 44px; height: 100px; }
+.gas-pedal .pedal-face svg { top: 14px; }
+
+.pedal-rail {
+  position: relative;
+  width: 58px;
+  height: 4px;
+  background: #121417;
+  border: 1px solid var(--line-1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.rail-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  transition: width 0.12s ease;
+}
+.gas-pedal .rail-fill { background: linear-gradient(90deg, #1f5ec4, #4d95ff); }
+.brake-pedal .rail-fill { background: linear-gradient(90deg, #a8322a, #ff5a4d); }
+.gas-pedal.pressed .rail-fill { width: 100%; }
+.brake-pedal.pressed .rail-fill { width: 100%; }
+
+.pedal-mode {
+  font-family: var(--font-mono);
+  font-size: 6.5px;
+  letter-spacing: 0.18em;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.pedal.pressed .pedal-face { transform: translateY(11px); }
+.gas-pedal.pressed .pedal-face {
+  border-color: var(--accent);
+  box-shadow: 0 3px 8px rgba(47,125,246,0.35), inset 0 1px 0 rgba(255,255,255,0.14);
+}
+.gas-pedal.pressed .pedal-face svg { color: var(--accent); }
+.brake-pedal.pressed .pedal-face {
+  border-color: var(--danger-bright);
+  box-shadow: 0 3px 8px rgba(255,90,77,0.35), inset 0 1px 0 rgba(255,255,255,0.14);
+}
+.brake-pedal.pressed .pedal-face svg { color: var(--danger-bright); }
+
+/* ---- CONTROL PANEL (center console strip) ---- */
+.control-panel {
+  grid-area: controls;
+  display: flex;
+  gap: 6px 14px;
+  align-items: center;
+  background: var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.control-panel::-webkit-scrollbar { display: none; }
+.cp-group {
+  display: flex;
+  gap: 6px 12px;
+  align-items: center;
+  border-left: 1px solid var(--line-1);
+  padding-left: 12px;
+  flex-wrap: nowrap;
+}
+.cp-group:first-of-type { border-left: none; padding-left: 0; }
+.cp-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.cp-label { font-size: 7.5px; letter-spacing: 0.16em; color: var(--text-2); font-weight: 700; white-space: nowrap; }
+.cp-key { font-family: var(--font-mono); font-size: 7px; color: var(--text-3); letter-spacing: 0.1em; }
+
+.round-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-1);
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  position: relative;
+}
+.round-btn svg { width: 17px; height: 17px; }
+.round-btn:hover { border-color: #4a4f58; background: var(--bg-3); }
+.round-btn:active { filter: brightness(0.8); }
+.round-btn.active { background: rgba(47,125,246,0.16); border-color: var(--accent); color: var(--accent); }
+.round-btn.danger.active { background: rgba(255,90,77,0.16); border-color: var(--danger-bright); color: var(--danger-bright); }
+.small-ind-btn { width: 32px; height: 32px; }
+.small-ind-btn svg { width: 14px; height: 14px; }
+.brake-btns.active { background: rgba(255,90,77,0.16); border-color: var(--danger-bright); color: var(--danger-bright); }
+
+.ind-blip {
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+.ind-blip.on { background: var(--warn); animation: blink 1s step-end infinite; }
+.ind-blip.hazard { background: var(--amber); animation: blink 0.7s step-end infinite; }
+
+.rock-item-row { display: flex; gap: 5px; flex-wrap: nowrap; }
+.rock-item { display: flex; align-items: center; gap: 8px; }
+.rocker {
+  width: 34px; height: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: 9px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+  flex-shrink: 0;
+}
+.rocker-thumb {
+  position: absolute;
+  top: 1px; left: 2px;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--text-3);
+  transition: transform 0.14s, background 0.14s;
+}
+.rocker.on { background: rgba(47,125,246,0.22); border-color: var(--accent); }
+.rocker.on .rocker-thumb { transform: translateX(18px); background: var(--accent); }
+.rock-info { display: flex; flex-direction: column; gap: 2px; }
+.rock-label { font-size: 8px; letter-spacing: 0.14em; font-weight: 700; color: var(--text-1); white-space: nowrap; }
+.rock-led { width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); }
+.rock-led.on { background: var(--accent); }
+
+/* ============ INSTRUMENT CLUSTER (compact band) ============ */
+/* ============ SPEEDOMETER GAUGE (in main panel) ============ */
+.gauge {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+.gauge::before {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 192px; height: 192px;
+  background: radial-gradient(circle at 40% 35%, #191b1f, #0f1012 72%);
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  box-shadow: inset 0 6px 26px rgba(0,0,0,0.6), 0 6px 16px rgba(0,0,0,0.45);
+  clip-path: inset(0 0 8.5% 0);
+}
+.gauge::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 208px; height: 208px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.05);
+  background: radial-gradient(circle at 50% 50%, rgba(47,125,246,0.06), transparent 65%);
+  clip-path: inset(0 0 8.5% 0);
+}
+.gauge-ring { position: relative; width: 172px; height: 172px; z-index: 1; }
+.gauge-ring canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* Glass dome over the dial */
+.gauge-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  clip-path: inset(0 0 8.5% 0);
+  background:
+    radial-gradient(circle at 50% 50%, transparent 63%, rgba(255,255,255,0.04) 64%, rgba(255,255,255,0.10) 95%, rgba(255,255,255,0.18) 100%),
+    linear-gradient(135deg, rgba(255,255,255,0.15) 0%, rgba(255,255,255,0.05) 26%, transparent 46%),
+    linear-gradient(315deg, rgba(255,255,255,0.06) 0%, transparent 32%);
+  box-shadow: inset 0 2px 6px rgba(255,255,255,0.07);
+}
+.gauge-value { z-index: 3; }
+.gauge-value::after {
+  content: "";
+  position: absolute;
+  width: 70px; height: 70px;
+  background: radial-gradient(circle at 40% 32%, #181a1e, #0d0e10);
+  border: 1px solid var(--line-1);
+  border-radius: 50%;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.04);
+}
+.gauge-value {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.gauge-number { font-family: var(--font-num); font-size: 34px; font-weight: 700; color: var(--text-1); line-height: 1; position: relative; z-index: 1; }
+.gauge-unit { font-size: 9px; letter-spacing: 0.24em; color: var(--text-3); margin-top: 5px; position: relative; z-index: 1; }
+.gauge-tick {
+  position: absolute;
+  top: 4px;
+  right: 40px;
+  font-size: 8.5px;
+  letter-spacing: 0.2em;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  z-index: 2;
+}
+.gauge-speed { width: 100%; }
+
+/* ============ FULLSCREEN CAM ============ */
+.cam-fs {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+.cam-fs[hidden] { display: none; }
+.cam-fs-feed { flex: 1; width: 100%; object-fit: contain; background: #000; }
+.cam-fs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--bg-1);
+  border-top: 1px solid var(--line-1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  color: var(--text-2);
+}
+
+/* ============ ANIMATIONS ============ */
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============ RESPONSIVE ============ */
+@media (max-width: 1100px) {
+  .deck { grid-template-columns: 1fr; }
+  .ws-url { display: none; }
+}
+
+@media (max-width: 900px) {
+  .deck {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "wheelpanel"
+      "controls";
+    margin-top: -52px;
+  }
+  .wheel-indicator { display: none; }
+  .control-panel { grid-area: controls; }
+  .wheel-panel { gap: 30px; padding: 6px 12px 8px; }
+  .wheel-panel .pedals { width: 118px; }
+  .panel-cluster { gap: 6px; padding: 2px 4px; }
+  .panel-cluster .rock-item { flex-direction: column; align-items: center; gap: 3px; }
+  .panel-cluster .rock-label { font-size: 7px; }
+  .panel-cluster .cluster-row { gap: 6px; }
+  .pedal-face { width: 44px; height: 74px; }
+  .gas-pedal .pedal-face { width: 36px; height: 82px; }
+  .gauge::before { width: 160px; height: 160px; }
+  .gauge::after { width: 174px; height: 174px; }
+  .gauge-ring { width: 144px; height: 144px; }
+  .gauge-number { font-size: 28px; }
+}
+
+@media (max-width: 640px) {
+  .conn-left .brand-sub { display: none; }
+  .cam-btn { padding: 3px 6px; font-size: 8px; }
+  .cam-overlay { flex-wrap: wrap; }
+  .wheel-panel { gap: 26px; }
+  .panel-cluster { gap: 6px; padding: 2px; }
+  .panel-cluster .cluster-row { gap: 5px; }
+  .wheel-panel .pedals { width: 120px; }
+  .pedal-box { gap: 8px; padding: 6px 10px 4px; }
+  .pedal-face { width: 38px; height: 64px; }
+  .gas-pedal .pedal-face { width: 32px; height: 70px; }
+  .gauge::before { width: 132px; height: 132px; }
+  .gauge::after { width: 144px; height: 144px; }
+  .gauge-ring { width: 118px; height: 118px; }
+  .gauge-number { font-size: 23px; }
+}
+
+/* Very short screens: relax overlap, tolerate inner scroll */
+@media (max-height: 620px) {
+  .deck { margin-top: -34px; }
+  .gauge::before { width: 104px; height: 104px; }
+  .gauge::after { width: 112px; height: 112px; }
+  .gauge-ring { width: 96px; height: 96px; }
+  .gauge-number { font-size: 17px; }
+}
+
+/* Short landscape phones + rotated portrait phones: main controls first, secondary strips hidden */
+@media (max-height: 600px) and (orientation: landscape), (max-width: 480px) and (orientation: portrait) {
+  .cockpit { grid-template-rows: minmax(70px, 1fr) auto; }
+  .deck { margin-top: -30px; }
+  .control-panel { padding: 4px 8px; }
+  .wheel-panel .pedals { width: 76px; }
+  .wheel-panel { gap: 16px; flex-wrap: nowrap; }
+  .wheel-panel .wheel-wrap { margin-right: 56px; }
+  .wheel-panel .wheel-column { margin-top: 0; }
+  .col-shroud { height: 14px; }
+  .col-tube { height: 16px; }
+  .wheel-panel .steering-wheel { --ws: min(84px, 30vmin); }
+  .round-btn { width: 32px; height: 32px; }
+  .round-btn svg { width: 14px; height: 14px; }
+  .panel-cluster .rock-item { gap: 2px; }
+  .panel-cluster { gap: 3px; padding: 2px 3px; }
+  .rocker { width: 30px; height: 13px; }
+  .rocker-thumb { width: 9px; height: 9px; top: 1px; left: 1px; }
+  .rocker.on .rocker-thumb { transform: translateX(17px); }
+  .rock-info { gap: 1px; }
+  .rock-label { font-size: 6.5px; line-height: 1.1; }
+  .column-stalk { display: none; }
+  .ind-stalk {
+    right: -84px;
+    width: 84px;
+    height: 12px;
+    margin-top: -6px;
+  }
+  .ind-stalk::before {
+    left: -9px;
+    width: 18px;
+    height: 18px;
+  }
+  .ind-stalk::after {
+    left: 4px;
+    width: 19px;
+    height: 12px;
+  }
+  .stalk-ball {
+    width: 26px;
+    height: 15px;
+    right: -15px;
+  }
+  .stalk-ball::before { width: 10px; height: 9px; }
+  .stalk-led { width: 5px; height: 5px; }
+  .pedal-face { width: 36px; height: 58px; }
+  .gas-pedal .pedal-face { width: 30px; height: 64px; }
+  .pedal-box { padding: 5px 8px 3px; }
+  .gear-selector { left: 8px; padding: 5px; }
+  .gear-rail, .gear-gate { min-height: 116px; }
+  .gear-lever { height: 26px; }
+  .gear-lever::before { height: 15px; top: 23px; }
+  .gear-knob { width: 30px; height: 30px; font-size: 11px; }
+  .gear-notch { width: 9px; height: 9px; }
+  .gauge-ring { width: 104px; height: 104px; }
+  .gauge-number { font-size: 20px; }
+}
+
+@media (max-height: 520px) {
+  body { overflow-y: auto; }
+  .cockpit { overflow: visible; }
+  .control-panel { padding: 3px 6px; }
+}
+
+/* ============ ROTATED PORTRAIT PHONE FIT (html.rot) ============ */
+/* After the 90deg rotation the layout height equals the screen width, so
+   everything is compacted: cluster items shrink, the deck stays slim and
+   the camera keeps a real slice of the screen. */
+html.rot .conn-bar { padding: 3px 8px; gap: 8px; }
+html.rot .brand-sub,
+html.rot .conn-latency { display: none; }
+html.rot .cockpit {
+  grid-template-rows: minmax(140px, 1fr) auto;
+  gap: 3px;
+  padding: 3px 6px 2px;
+  overflow: hidden;
+}
+html.rot .deck { margin-top: -10px; gap: 3px; }
+html.rot .wheel-panel { gap: 14px; padding: 2px 8px 3px; flex-wrap: nowrap; }
+html.rot .wheel-panel .pedals { width: 84px; }
+html.rot .wheel-panel .steering-wheel { --ws: 88px; width: var(--ws); height: var(--ws); }
+html.rot .wheel-panel .wheel-wrap { margin-right: 56px; gap: 2px; }
+html.rot .wheel-grip { height: calc(var(--ws) * 0.32); }
+html.rot .wheel-panel .wheel-column { margin-top: 0; }
+html.rot .col-shroud { height: 14px; }
+html.rot .col-tube { height: 16px; }
+html.rot .pedal-face { width: 30px; height: 48px; }
+html.rot .gas-pedal .pedal-face { width: 26px; height: 52px; }
+html.rot .pedal-tag { font-size: 6.5px; padding: 1px 6px; }
+html.rot .pedal-box { gap: 6px; padding: 4px 8px 3px; }
+html.rot .pedal-mode { font-size: 6px; }
+html.rot .gauge::before { width: 88px; height: 88px; }
+html.rot .gauge::after { width: 100px; height: 100px; }
+html.rot .gauge-ring { width: 78px; height: 78px; }
+html.rot .gauge-number { font-size: 15px; }
+html.rot .gauge-unit { font-size: 7px; }
+html.rot .gear-selector { left: 8px; padding: 5px; }
+html.rot .gear-rail, html.rot .gear-gate { min-height: 118px; }
+html.rot .gear-lever { height: 26px; }
+html.rot .gear-lever::before { height: 15px; top: 23px; }
+html.rot .gear-knob { width: 32px; height: 32px; font-size: 12px; }
+html.rot .gear-notch { width: 9px; height: 9px; }
+html.rot .round-btn { width: 32px; height: 32px; }
+html.rot .round-btn svg { width: 14px; height: 14px; }
+html.rot .small-ind-btn { width: 26px; height: 26px; }
+html.rot .small-ind-btn svg { width: 11px; height: 11px; }
+html.rot .panel-cluster .rock-item { gap: 2px; }
+html.rot .panel-cluster { gap: 3px; padding: 2px 3px; }
+html.rot .rocker { width: 30px; height: 13px; }
+html.rot .rocker-thumb { width: 9px; height: 9px; top: 1px; left: 1px; }
+html.rot .rocker.on .rocker-thumb { transform: translateX(17px); }
+html.rot .rock-info { gap: 1px; }
+html.rot .rock-label { font-size: 6.5px; line-height: 1.1; }
+html.rot .rock-led { width: 4px; height: 4px; }
+html.rot .rock-item { gap: 5px; }
+html.rot .wheel-indicator { display: none; }
