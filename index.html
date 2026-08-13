@@ -146,67 +146,8 @@
     <!-- ============ DRIVING + CONTROL DECK ============ -->
     <section class="deck" aria-label="driving controls">
 
-      <!-- WHEEL PANEL: lights + indicators + pedals + steering wheel + speedo -->
+      <!-- WHEEL PANEL: pedals + steering wheel + speedo + headlight -->
       <div class="wheel-panel">
-
-        <!-- LEFT CLUSTER: indicators, hazard, brake / rev / park lights -->
-        <div class="panel-cluster cluster-left" aria-label="Indicators and brake lights">
-          <div class="cluster-row">
-            <div class="cp-item">
-              <button class="round-btn ind-btn" id="btnLeftInd" type="button" aria-label="Left indicator">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M15 6l-6 6 6 6"/>
-                </svg>
-              </button>
-              <span class="cp-label">LEFT</span>
-            </div>
-            <div class="cp-item">
-              <button class="round-btn" id="btnHazard" type="button" aria-label="Hazard lights">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M12 4L21 20H3L12 4z"/>
-                  <path d="M12 10v4"/>
-                </svg>
-                <span class="ind-blip" data-blip="hazard-blip"></span>
-              </button>
-              <span class="cp-label">HAZARD</span>
-            </div>
-            <div class="cp-item">
-              <button class="round-btn ind-btn" id="btnRightInd" type="button" aria-label="Right indicator">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M9 6l6 6-6 6"/>
-                </svg>
-              </button>
-              <span class="cp-label">RIGHT</span>
-            </div>
-          </div>
-          <div class="cluster-row">
-            <div class="cp-item">
-              <button class="round-btn small-ind-btn brake-btns" id="btnBrakeLight" type="button" aria-label="Brake light">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M7 12l5 5 5-5M7 17h10M7 7l5 5 5-5"/>
-                </svg>
-              </button>
-              <span class="cp-label">BRAKE</span>
-            </div>
-            <div class="cp-item">
-              <button class="round-btn small-ind-btn brake-btns" id="btnReverseLight" type="button" aria-label="Reverse light">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <path d="M17 12l-5-5M17 12l-5 5M12 17v0"/>
-                </svg>
-              </button>
-              <span class="cp-label">REV</span>
-            </div>
-            <div class="rock-item park-item">
-              <div class="rocker" data-toggle="parkinglights">
-                <div class="rocker-thumb"></div>
-              </div>
-              <div class="rock-info">
-                <span class="rock-label">PARK</span>
-                <span class="rock-led" data-led="parkinglights"></span>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <!-- PEDALS -->
         <div class="pedals">
@@ -280,42 +221,15 @@
           </div>
         </div>
 
-        <!-- RIGHT CLUSTER: headlights + lighting toggles -->
+        <!-- HEADLIGHT -->
         <div class="panel-cluster cluster-right" aria-label="Lights">
           <div class="rock-item">
             <div class="rocker" data-toggle="headlights">
               <div class="rocker-thumb"></div>
             </div>
             <div class="rock-info">
-              <span class="rock-label">HEADLIGHTS</span>
+              <span class="rock-label">HEADLIGHT</span>
               <span class="rock-led" data-led="headlights"></span>
-            </div>
-          </div>
-          <div class="rock-item">
-            <div class="rocker" data-toggle="highbeam">
-              <div class="rocker-thumb"></div>
-            </div>
-            <div class="rock-info">
-              <span class="rock-label">HIGH BEAM</span>
-              <span class="rock-led" data-led="highbeam"></span>
-            </div>
-          </div>
-          <div class="rock-item">
-            <div class="rocker" data-toggle="foglights">
-              <div class="rocker-thumb"></div>
-            </div>
-            <div class="rock-info">
-              <span class="rock-label">FOG</span>
-              <span class="rock-led" data-led="foglights"></span>
-            </div>
-          </div>
-          <div class="rock-item">
-            <div class="rocker" data-toggle="interiorlight">
-              <div class="rocker-thumb"></div>
-            </div>
-            <div class="rock-info">
-              <span class="rock-label">INTERIOR</span>
-              <span class="rock-led" data-led="interiorlight"></span>
             </div>
           </div>
         </div>

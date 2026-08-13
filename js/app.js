@@ -885,7 +885,8 @@
     if (rocker) rocker.classList.toggle("on", val);
     const led = document.querySelector('[data-led="' + name + '"]');
     if (led) led.classList.toggle("on", val);
-    if (name === "reverseLight") $("btnReverseLight").classList.toggle("active", val);
+    const revBtn = $("btnReverseLight");
+    if (name === "reverseLight" && revBtn) revBtn.classList.toggle("active", val);
     if (name === "brakeLight") updateStatusLed("brakelights", state.brakeHold || val);
     if (name === "headlights") updateStatusLed("headlights", val);
   }
@@ -950,12 +951,15 @@
       stalk.classList.toggle("down", it.right || it.hazard);
       stalk.setAttribute("aria-valuenow", it.left || it.hazard ? "-1" : it.right ? "1" : "0");
     }
-    $("btnHazard").classList.toggle("active", it.hazard);
-    $("btnHazard").classList.toggle("danger", it.hazard);
-    $("btnLeftInd").classList.toggle("active", it.left || it.hazard);
-    $("btnRightInd").classList.toggle("active", it.right || it.hazard);
-    $("btnLeftInd").classList.add("ind-btn");
-    $("btnRightInd").classList.add("ind-btn");
+    const hzBtn = $("btnHazard");
+    const liBtn = $("btnLeftInd");
+    const riBtn = $("btnRightInd");
+    if (hzBtn) hzBtn.classList.toggle("active", it.hazard);
+    if (hzBtn) hzBtn.classList.toggle("danger", it.hazard);
+    if (liBtn) liBtn.classList.toggle("active", it.left || it.hazard);
+    if (riBtn) riBtn.classList.toggle("active", it.right || it.hazard);
+    if (liBtn) liBtn.classList.add("ind-btn");
+    if (riBtn) riBtn.classList.add("ind-btn");
 
     clearInterval(state.indicatorTimer);
     state.indicatorTimer = null;
@@ -970,23 +974,24 @@
         const on = state.indicatorPhase % 2 === 1;
         it.ohl = (it.left || it.hazard) && on;
         it.ohr = (it.right || it.hazard) && on;
-        $("btnLeftInd").classList.toggle("active", it.ohl);
-        $("btnRightInd").classList.toggle("active", it.ohr);
-        const blip = $("btnHazard").querySelector(".ind-blip");
+        if (liBtn) liBtn.classList.toggle("active", it.ohl);
+        if (riBtn) riBtn.classList.toggle("active", it.ohr);
+        const blip = hzBtn && hzBtn.querySelector(".ind-blip");
         if (blip) blip.classList.toggle("on", on);
         send({ type: "indicator", left: it.ohl, right: it.ohr, hazard: it.hazard, phase: state.indicatorPhase });
         if (state.autoCancelInd && !it.hazard && state.indicatorPhase >= 8) cancelIndicatorsSilent();
       }, rate);
       it.ohl = it.left || it.hazard;
       it.ohr = it.right || it.hazard;
-      $("btnLeftInd").classList.toggle("active", it.ohl);
-      $("btnRightInd").classList.toggle("active", it.ohr);
+      if (liBtn) liBtn.classList.toggle("active", it.ohl);
+      if (riBtn) riBtn.classList.toggle("active", it.ohr);
       updateStatusLed("indicator", true, true);
       updateStatusLed("hazard", it.hazard, it.hazard);
       send({ type: "indicator", left: it.ohl, right: it.ohr, hazard: it.hazard, phase: 1 });
     } else {
       send({ type: "indicator", left: false, right: false, hazard: false });
-      $("btnHazard").querySelector(".ind-blip") && $("btnHazard").querySelector(".ind-blip").classList.remove("on");
+      const blip = hzBtn && hzBtn.querySelector(".ind-blip");
+      if (blip) blip.classList.remove("on");
       updateStatusLed("indicator", false);
       updateStatusLed("hazard", false);
     }
@@ -1001,11 +1006,14 @@
     state.indicators.hazard = false;
     state.indicators.ohl = false;
     state.indicators.ohr = false;
-    $("btnLeftInd").classList.remove("active");
-    $("btnRightInd").classList.remove("active");
-    $("btnHazard").classList.remove("active");
-    $("btnHazard").classList.remove("danger");
-    const blip = $("btnHazard").querySelector(".ind-blip");
+    const liBtn = $("btnLeftInd");
+    const riBtn = $("btnRightInd");
+    const hzBtn = $("btnHazard");
+    if (liBtn) liBtn.classList.remove("active");
+    if (riBtn) riBtn.classList.remove("active");
+    if (hzBtn) hzBtn.classList.remove("active");
+    if (hzBtn) hzBtn.classList.remove("danger");
+    const blip = hzBtn && hzBtn.querySelector(".ind-blip");
     if (blip) blip.classList.remove("on");
     send({ type: "indicator", left: false, right: false, hazard: false });
     updateStatusLed("indicator", false);
