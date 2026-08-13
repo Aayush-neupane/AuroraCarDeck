@@ -273,16 +273,16 @@
   const Gauge = {
     speedCtx: null,
     speedVal: 0,
-    targets: { speed: 0 }
+    targets: { speed: 0 },
+    canvas: null,
+    size: 0
   };
 
   function initGauges() {
-    const sc = $("gaugeSpeedCanvas");
-    Gauge.speedCtx = sc.getContext("2d");
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    sc.width = 220 * dpr; sc.height = 220 * dpr;
-    sc.style.width = "100%"; sc.style.height = "100%";
-    Gauge.speedCtx.scale(dpr, dpr);
+    Gauge.canvas = $("gaugeSpeedCanvas");
+    Gauge.speedCtx = Gauge.canvas.getContext("2d");
+    Gauge.canvas.style.width = "100%";
+    Gauge.canvas.style.height = "100%";
     requestAnimationFrame(gaugeLoop);
   }
 
@@ -294,6 +294,15 @@
   }
 
   function drawGauge(ctx, val, min, max, opt) {
+    const size = Math.round(Gauge.canvas.getBoundingClientRect().width) || Gauge.size || 220;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (Gauge.size !== size || Gauge.canvas.width !== size * dpr) {
+      Gauge.canvas.width = size * dpr;
+      Gauge.canvas.height = size * dpr;
+      Gauge.size = size;
+    }
+    const s = size / 220;
+    ctx.setTransform(dpr * s, 0, 0, dpr * s, 0, 0);
     const w = 220, h = 220, cx = w / 2, cy = h / 2;
     const rOuter = 96, rInner = 76;
     const start = Math.PI * 0.75;
@@ -497,7 +506,12 @@
       if (!wheel.pointerDown) return;
       e.preventDefault();
       const delta = signedDelta(wheel.dragStart, startAngle(e));
-      setSteer(clamp(wheel.baseAngle + delta, -CONFIG.steerMaxDeg, CONFIG.steerMaxDeg));
+      const raw = wheel.baseAngle + delta;
+      const limited = clamp(raw, -CONFIG.steerMaxDeg, CONFIG.steerMaxDeg);
+      setSteer(limited);
+      /* Re-anchor the drag base at the physical limit so the wheel never
+         snaps to the opposite lock when the finger keeps going past 90deg */
+      if (limited !== raw) wheel.baseAngle = limited - delta;
     });
 
     const endDrag = () => {

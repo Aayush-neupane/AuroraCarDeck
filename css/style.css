@@ -565,6 +565,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   width: 150px;
   flex-shrink: 0;
   align-self: flex-end;
+  margin-left: 20%;
   margin-right: auto;
   position: relative;
   z-index: 7;
