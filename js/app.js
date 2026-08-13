@@ -289,7 +289,7 @@
   function gaugeLoop() {
     Gauge.speedVal = lerp(Gauge.speedVal, Gauge.targets.speed, 0.12);
     if (Math.abs(Gauge.speedVal - Gauge.targets.speed) < 0.3) Gauge.speedVal = Gauge.targets.speed;
-    drawGauge(Gauge.speedCtx, Gauge.speedVal, 0, 140, { minor: 5, needle: "#ff5a4d", redZone: null });
+    drawGauge(Gauge.speedCtx, Gauge.speedVal, 0, 140, { needle: "#ff5a4d", redline: [118, 140] });
     requestAnimationFrame(gaugeLoop);
   }
 
@@ -304,65 +304,88 @@
     const s = size / 220;
     ctx.setTransform(dpr * s, 0, 0, dpr * s, 0, 0);
     const w = 220, h = 220, cx = w / 2, cy = h / 2;
-    const rOuter = 96, rInner = 76;
+    const rOuter = 96, rTrack = 80, rInner = 72;
     const start = Math.PI * 0.75;
     const sweep = Math.PI * 1.5;
+    const end = start + sweep;
     ctx.clearRect(0, 0, w, h);
 
     const span = max - min;
     const angOf = (v) => start + (clamp(v, min, max) - min) / span * sweep;
-    const majorStep = (max - min) / 12;
 
-    if (opt.redZone) {
-      ctx.strokeStyle = "rgba(255,90,77,0.55)";
-      ctx.lineWidth = 3;
-      ctx.lineCap = "round";
+    ctx.lineCap = "butt";
+    ctx.strokeStyle = "rgba(255,255,255,0.09)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rOuter + 2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rTrack, start + 0.03, end - 0.03);
+    ctx.stroke();
+
+    if (opt.redline) {
+      ctx.strokeStyle = "#ff5a4d";
+      ctx.lineWidth = 10;
       ctx.beginPath();
-      ctx.arc(cx, cy, rInner, angOf(opt.redZone[0]), angOf(opt.redZone[1]));
+      ctx.arc(cx, cy, rTrack, angOf(opt.redline[0]), angOf(opt.redline[1]));
+      ctx.stroke();
+    } else if (opt.redZone) {
+      ctx.strokeStyle = "rgba(255,90,77,0.55)";
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rTrack, angOf(opt.redZone[0]), angOf(opt.redZone[1]));
       ctx.stroke();
     }
 
-    ctx.lineCap = "butt";
+    ctx.lineCap = "round";
     for (let i = 0; i <= 106; i++) {
       const v = min + i * (span / 106);
       const a = angOf(v);
-      const major = v % majorStep === 0 || i === 0;
-      const isRed = opt.redZone && v >= opt.redZone[0];
-      ctx.strokeStyle = isRed ? "#ff5a4d" : (major ? "#c9cdd4" : "#5b616a");
-      ctx.lineWidth = major ? 2.4 : 1.2;
+      const major = i % 9 === 0;
+      const isRed = (opt.redline && v >= opt.redline[0]) || (opt.redZone && v >= opt.redZone[0]);
+      ctx.strokeStyle = isRed ? "#ff5a4d" : (major ? "#c9cdd4" : "#565c65");
+      ctx.lineWidth = major ? 3.4 : 1.6;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(a) * rInner, cy + Math.sin(a) * rInner);
-      ctx.lineTo(cx + Math.cos(a) * (rInner - (major ? 11 : 6)), cy + Math.sin(a) * (rInner - (major ? 11 : 6)));
+      ctx.lineTo(cx + Math.cos(a) * (rInner - (major ? 15 : 8)), cy + Math.sin(a) * (rInner - (major ? 15 : 8)));
       ctx.stroke();
     }
 
-    ctx.fillStyle = "#8a9099";
-    ctx.font = "600 10px 'SF Mono', 'Roboto Mono', monospace";
+    ctx.fillStyle = "#9aa1ab";
+    ctx.font = "700 11px 'SF Mono', 'Roboto Mono', monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    for (let i = 0; i <= 12; i++) {
-      const v = Math.round(min + i * (span / 12));
+    const labelStep = Math.max(1, Math.round(span / 14));
+    for (let v = min; v <= max; v += labelStep) {
       const a = angOf(v);
-      const la = clamp(a, start + 0.08, start + sweep - 0.08);
-      ctx.fillText(String(v), cx + Math.cos(la) * (rOuter - 6), cy + Math.sin(la) * (rOuter - 6));
+      const la = clamp(a, start + 0.07, end - 0.07);
+      ctx.fillText(String(v), cx + Math.cos(la) * (rOuter - 5), cy + Math.sin(la) * (rOuter - 5));
     }
 
     const needle = angOf(Math.round(val * 10) / 10);
-    ctx.strokeStyle = opt.needle;
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = opt.needle || "#ff5a4d";
+    ctx.lineWidth = 4;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(cx - Math.cos(needle) * 12, cy - Math.sin(needle) * 12);
-    ctx.lineTo(cx + Math.cos(needle) * (rInner - 12), cy + Math.sin(needle) * (rInner - 12));
+    ctx.moveTo(cx - Math.cos(needle) * 16, cy - Math.sin(needle) * 16);
+    ctx.lineTo(cx + Math.cos(needle) * (rInner - 8), cy + Math.sin(needle) * (rInner - 8));
     ctx.stroke();
 
+    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.fillStyle = "#e8eaed";
     ctx.beginPath();
     ctx.arc(cx, cy, 5.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = "#0a0a0b";
     ctx.beginPath();
-    ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 2.6, 0, Math.PI * 2);
     ctx.fill();
   }
 
@@ -891,6 +914,23 @@
         if (navigator.vibrate) navigator.vibrate(8);
       });
     });
+
+    const lever = $("lightLever");
+    if (lever) {
+      const toggleLever = () => {
+        setToggle("headlights", !toggles.headlights);
+        send({ command: "headlights", value: toggles.headlights ? 1 : 0 });
+        updateStatusFromTelemetry();
+        if (navigator.vibrate) navigator.vibrate(8);
+      };
+      lever.addEventListener("click", toggleLever);
+      lever.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          toggleLever();
+        }
+      });
+    }
   }
 
   function setToggle(name, val) {
@@ -899,6 +939,13 @@
     if (rocker) rocker.classList.toggle("on", val);
     const led = document.querySelector('[data-led="' + name + '"]');
     if (led) led.classList.toggle("on", val);
+    if (name === "headlights") {
+      const lever = $("lightLever");
+      if (lever) {
+        lever.classList.toggle("on", val);
+        lever.setAttribute("aria-checked", val ? "true" : "false");
+      }
+    }
     const revBtn = $("btnReverseLight");
     if (name === "reverseLight" && revBtn) revBtn.classList.toggle("active", val);
     if (name === "brakeLight") updateStatusLed("brakelights", state.brakeHold || val);

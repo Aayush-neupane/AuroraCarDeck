@@ -553,19 +553,19 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 48px;
   background: linear-gradient(180deg, var(--bg-1) 0%, #0c0d0f 100%);
   border: 1px solid var(--line-1);
   border-radius: var(--radius);
   padding: 8px 16px 10px;
+  padding-right: 20%;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 10px 26px rgba(0,0,0,0.35);
 }
 .wheel-panel .pedals {
   width: 150px;
   flex-shrink: 0;
   align-self: flex-end;
-  margin-left: 20%;
   margin-right: auto;
   position: relative;
   z-index: 7;
@@ -613,7 +613,87 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 }
 .cluster-row .cp-item { gap: 1px; }
 .cluster-left { align-self: flex-end; margin-right: auto; }
-.cluster-right { margin-left: auto; }
+
+/* ---- HEADLIGHT SWITCH LEVER (next to the speedometer) ---- */
+.light-lever {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-end;
+  margin-left: 16px;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.light-lever:focus-visible .lever-rail { outline: 1px solid var(--accent); outline-offset: 2px; }
+.light-lever:active .lever-knob { transform: translateX(-50%) scale(0.96); }
+.lever-rail {
+  position: relative;
+  width: 34px;
+  height: 64px;
+  background: linear-gradient(180deg, #23262b, #181a1e);
+  border: 1px solid var(--line-1);
+  border-radius: 9px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 4px 10px rgba(0,0,0,0.4);
+}
+.lever-rail::before,
+.lever-rail::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.14);
+}
+.lever-rail::before { top: 7px; }
+.lever-rail::after { bottom: 7px; }
+.lever-knob {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 22px;
+  background: linear-gradient(180deg, #3a3f46, #23262b);
+  border: 1px solid #4a4f58;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 2px 5px rgba(0,0,0,0.5);
+  transition: top 0.18s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lever-knob::after {
+  content: "";
+  width: 12px;
+  height: 2px;
+  background: rgba(255,255,255,0.22);
+  border-radius: 2px;
+  box-shadow: 0 4px 0 rgba(255,255,255,0.22), 0 8px 0 rgba(255,255,255,0.22);
+}
+.light-lever.on .lever-knob {
+  top: 36px;
+  background: linear-gradient(180deg, #2f7df6, #1e4f9e);
+  border-color: #4d8df7;
+}
+.light-lever.on .lever-rail { border-color: rgba(47,125,246,0.5); }
+.lever-info {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.lever-label {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  letter-spacing: 0.18em;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.light-lever.on .lever-label { color: var(--accent); }
 
 /* ---- SPEEDOMETER (inside main wheel panel) ---- */
 .speedo {
@@ -1454,6 +1534,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   .gauge::before { width: 160px; height: 160px; }
   .gauge::after { width: 174px; height: 174px; }
   .gauge-ring { width: 144px; height: 144px; }
+  .gauge-value::after { width: 58px; height: 58px; }
   .gauge-number { font-size: 28px; }
 }
 
@@ -1471,6 +1552,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   .gauge::before { width: 132px; height: 132px; }
   .gauge::after { width: 144px; height: 144px; }
   .gauge-ring { width: 118px; height: 118px; }
+  .gauge-value::after { width: 48px; height: 48px; }
   .gauge-number { font-size: 23px; }
 }
 
@@ -1480,6 +1562,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   .gauge::before { width: 104px; height: 104px; }
   .gauge::after { width: 112px; height: 112px; }
   .gauge-ring { width: 96px; height: 96px; }
+  .gauge-value::after { width: 40px; height: 40px; }
   .gauge-number { font-size: 17px; }
 }
 
@@ -1491,6 +1574,12 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   .wheel-panel .pedals { width: 76px; }
   .wheel-panel { gap: 16px; flex-wrap: nowrap; }
   .wheel-panel .wheel-wrap { margin-left: 56px; }
+  .light-lever { margin-left: 8px; }
+  .lever-rail { width: 22px; height: 44px; border-radius: 7px; }
+  .lever-knob { width: 16px; height: 15px; top: 5px; border-radius: 5px; }
+  .lever-knob::after { width: 8px; box-shadow: 0 3px 0 rgba(255,255,255,0.22), 0 6px 0 rgba(255,255,255,0.22); }
+  .light-lever.on .lever-knob { top: 24px; }
+  .lever-label { font-size: 6px; }
   .wheel-panel .wheel-column { margin-top: 0; }
   .col-shroud { height: 14px; }
   .col-tube { height: 16px; }
@@ -1538,6 +1627,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   .gear-knob { width: 30px; height: 30px; font-size: 11px; }
   .gear-notch { width: 9px; height: 9px; }
   .gauge-ring { width: 104px; height: 104px; }
+  .gauge-value::after { width: 42px; height: 42px; }
   .gauge-number { font-size: 20px; }
 }
 
@@ -1565,6 +1655,12 @@ html.rot .wheel-panel { gap: 14px; padding: 2px 8px 3px; flex-wrap: nowrap; }
 html.rot .wheel-panel .pedals { width: 84px; }
 html.rot .wheel-panel .steering-wheel { --ws: 88px; width: var(--ws); height: var(--ws); }
 html.rot .wheel-panel .wheel-wrap { margin-left: 56px; gap: 2px; }
+html.rot .light-lever { margin-left: 8px; }
+html.rot .lever-rail { width: 22px; height: 44px; border-radius: 7px; }
+html.rot .lever-knob { width: 16px; height: 15px; top: 5px; border-radius: 5px; }
+html.rot .lever-knob::after { width: 8px; box-shadow: 0 3px 0 rgba(255,255,255,0.22), 0 6px 0 rgba(255,255,255,0.22); }
+html.rot .light-lever.on .lever-knob { top: 24px; }
+html.rot .lever-label { display: none; }
 html.rot .wheel-grip { height: calc(var(--ws) * 0.32); }
 html.rot .wheel-panel .wheel-column { margin-top: 0; }
 html.rot .col-shroud { height: 14px; }
@@ -1577,8 +1673,9 @@ html.rot .pedal-mode { font-size: 6px; }
 html.rot .gauge::before { width: 88px; height: 88px; }
 html.rot .gauge::after { width: 100px; height: 100px; }
 html.rot .gauge-ring { width: 78px; height: 78px; }
-html.rot .gauge-number { font-size: 15px; }
-html.rot .gauge-unit { font-size: 7px; }
+html.rot .gauge-value::after { width: 32px; height: 32px; }
+html.rot .gauge-number { font-size: 13px; }
+html.rot .gauge-unit { font-size: 6.5px; margin-top: 2px; }
 html.rot .gear-selector { left: 8px; padding: 5px; }
 html.rot .gear-rail, html.rot .gear-gate { min-height: 118px; }
 html.rot .gear-lever { height: 26px; }
