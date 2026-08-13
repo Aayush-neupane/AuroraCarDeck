@@ -1651,10 +1651,10 @@ html.rot .cockpit {
   overflow: hidden;
 }
 html.rot .deck { margin-top: -10px; gap: 3px; }
-html.rot .wheel-panel { gap: 14px; padding: 2px 8px 3px; flex-wrap: nowrap; }
+html.rot .wheel-panel { gap: 34px; padding: 2px 8px 3px; padding-right: 20%; flex-wrap: nowrap; }
 html.rot .wheel-panel .pedals { width: 84px; }
 html.rot .wheel-panel .steering-wheel { --ws: 88px; width: var(--ws); height: var(--ws); }
-html.rot .wheel-panel .wheel-wrap { margin-left: 56px; gap: 2px; }
+html.rot .wheel-panel .wheel-wrap { margin-left: 60px; gap: 2px; }
 html.rot .light-lever { margin-left: 8px; }
 html.rot .lever-rail { width: 22px; height: 44px; border-radius: 7px; }
 html.rot .lever-knob { width: 16px; height: 15px; top: 5px; border-radius: 5px; }
