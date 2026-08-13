@@ -26,7 +26,15 @@
   --font-num: "SF Mono", "Roboto Mono", "JetBrains Mono", Menlo, monospace;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: rgba(0,0,0,0);
+}
 
 html {
   height: 100%;
@@ -574,7 +582,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 }
 .wheel-panel .wheel-wrap {
   gap: 5px;
-  margin-right: 84px;
+  margin-left: 84px;
 }
 .wheel-panel .wheel-column {
   margin-top: 2px;
@@ -1481,7 +1489,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   .control-panel { padding: 4px 8px; }
   .wheel-panel .pedals { width: 76px; }
   .wheel-panel { gap: 16px; flex-wrap: nowrap; }
-  .wheel-panel .wheel-wrap { margin-right: 56px; }
+  .wheel-panel .wheel-wrap { margin-left: 56px; }
   .wheel-panel .wheel-column { margin-top: 0; }
   .col-shroud { height: 14px; }
   .col-tube { height: 16px; }
@@ -1497,8 +1505,8 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   .rock-label { font-size: 6.5px; line-height: 1.1; }
   .column-stalk { display: none; }
   .ind-stalk {
-    right: -84px;
-    width: 84px;
+    right: -60px;
+    width: 60px;
     height: 12px;
     margin-top: -6px;
   }
@@ -1555,7 +1563,7 @@ html.rot .deck { margin-top: -10px; gap: 3px; }
 html.rot .wheel-panel { gap: 14px; padding: 2px 8px 3px; flex-wrap: nowrap; }
 html.rot .wheel-panel .pedals { width: 84px; }
 html.rot .wheel-panel .steering-wheel { --ws: 88px; width: var(--ws); height: var(--ws); }
-html.rot .wheel-panel .wheel-wrap { margin-right: 56px; gap: 2px; }
+html.rot .wheel-panel .wheel-wrap { margin-left: 56px; gap: 2px; }
 html.rot .wheel-grip { height: calc(var(--ws) * 0.32); }
 html.rot .wheel-panel .wheel-column { margin-top: 0; }
 html.rot .col-shroud { height: 14px; }

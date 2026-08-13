@@ -236,6 +236,20 @@
           </div>
         </div>
 
+        <!-- SPEEDOMETER -->
+        <div class="speedo">
+          <div class="gauge gauge-speed">
+            <div class="gauge-tick gauge-tick-speed" data-label="km/h"></div>
+            <div class="gauge-ring">
+              <canvas id="gaugeSpeedCanvas" width="220" height="220"></canvas>
+              <div class="gauge-value">
+                <div class="gauge-number" id="gaugeSpeedNumber">0</div>
+                <div class="gauge-unit">km/h</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- STEERING WHEEL + COLUMN -->
         <div class="wheel-wrap" id="wheelWrap">
           <div class="steering-wheel" id="steeringWheel" role="slider" aria-label="Steering wheel" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" tabindex="0">
@@ -263,20 +277,6 @@
           </div>
           <div class="wheel-indicator" id="wheelIndicator">
             <span class="wheel-state" id="wheelState">CENTER</span>
-          </div>
-        </div>
-
-        <!-- SPEEDOMETER -->
-        <div class="speedo">
-          <div class="gauge gauge-speed">
-            <div class="gauge-tick gauge-tick-speed" data-label="km/h"></div>
-            <div class="gauge-ring">
-              <canvas id="gaugeSpeedCanvas" width="220" height="220"></canvas>
-              <div class="gauge-value">
-                <div class="gauge-number" id="gaugeSpeedNumber">0</div>
-                <div class="gauge-unit">km/h</div>
-              </div>
-            </div>
           </div>
         </div>
 

@@ -5,7 +5,7 @@
      CONFIG
      ============================================================ */
   const CONFIG = {
-    wsPort: null,
+    wsPort: 81,
     wsPath: "/ws",
     streamPath: "/stream",
     capturePath: "/capture",
@@ -1472,6 +1472,12 @@
     updateStatusFromTelemetry();
     updateWarnings();
     setSteer(0);
+
+    /* Long-press on touch: kill text selection callout / context menu */
+    if (window.matchMedia && matchMedia("(pointer: coarse)").matches || "ontouchstart" in window) {
+      document.addEventListener("contextmenu", (e) => e.preventDefault());
+      document.addEventListener("selectstart", (e) => e.preventDefault());
+    }
 
     setInterval(steerTick, 90);
     setTimeout(() => setInterval(() => {

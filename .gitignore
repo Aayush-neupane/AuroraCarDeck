@@ -3,3 +3,5 @@ node_modules/
 *.log
 # Local Netlify folder
 .netlify
+# Personal documents — never commit
+assets/*.pdf
