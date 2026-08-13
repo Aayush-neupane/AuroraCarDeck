@@ -5,3 +5,5 @@ node_modules/
 .netlify
 # Personal documents — never commit
 assets/*.pdf
+# ESP32 firmware sketch (kept local only)
+firmware/
