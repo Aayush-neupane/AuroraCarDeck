@@ -1300,26 +1300,49 @@
      ============================================================ */
   let keyThrottleTimer = null;
   let keyBrakeTimer = null;
+  let keyDuty = 0;
+  const KEY_TARGET_DUTY = 200;
+
+  function toggleKeyHelp() {
+    const el = $("keyHelp");
+    if (el) el.hidden = !el.hidden;
+  }
 
   function initKeyboard() {
     window.addEventListener("keydown", (e) => {
       if (e.repeat) return;
       const k = e.key.toLowerCase();
-      if (k === " " || k.indexOf("arrow") === 0) e.preventDefault();
+      if (k === " " || k === "?" || k.indexOf("arrow") === 0) e.preventDefault();
       switch (k) {
         case "w": case "arrowup":
           if (state.throttleHold) break;
           state.throttleHold = true;
+          const gasEl = $("gasPedal");
+          if (gasEl) gasEl.classList.add("pressed");
           handleCommand("forward");
-          keyThrottleTimer = setInterval(() => handleCommand("forward"), CONFIG.cmdInterval);
+          keyThrottleTimer = setInterval(() => {
+            if (keyDuty < KEY_TARGET_DUTY) {
+              keyDuty = Math.min(KEY_TARGET_DUTY, keyDuty + 40);
+              send({ command: "speed", value: keyDuty });
+            }
+            handleCommand("forward");
+          }, CONFIG.cmdInterval);
           updateStatusFromTelemetry();
           break;
         case "s": case "arrowdown":
           if (state.brakeHold) break;
           state.brakeHold = true;
+          const brakeEl = $("brakePedal");
+          if (brakeEl) brakeEl.classList.add("pressed");
           const bcmd = CONFIG.brakeMode === "reverse" ? "reverse" : "stop";
           handleCommand(bcmd);
-          keyBrakeTimer = setInterval(() => handleCommand(bcmd), CONFIG.cmdInterval);
+          keyBrakeTimer = setInterval(() => {
+            if (keyDuty < KEY_TARGET_DUTY) {
+              keyDuty = Math.min(KEY_TARGET_DUTY, keyDuty + 40);
+              send({ command: "speed", value: keyDuty });
+            }
+            handleCommand(bcmd);
+          }, CONFIG.cmdInterval);
           updateStatusLed("brakelights", true);
           updateStatusFromTelemetry();
           break;
@@ -1350,6 +1373,9 @@
         case "escape":
           triggerEStop();
           break;
+        case "k": case "?":
+          toggleKeyHelp();
+          break;
         case "g":
           const next = GEAR_ORDER[(GEAR_ORDER.indexOf(state.gear) + 1) % GEAR_ORDER.length];
           selectGear(next);
@@ -1365,23 +1391,31 @@
       if (e.key === " ") { releaseHorn(); return; }
       switch (k) {
         case "w": case "arrowup":
-          if (keyThrottleTimer) clearInterval(keyThrottleTimer);
+          if (keyThrottleTimer) { clearInterval(keyThrottleTimer); keyThrottleTimer = null; }
           state.throttleHold = false;
+          keyDuty = 0;
+          send({ command: "speed", value: 0 });
           handleCommand("stop");
+          const gasEl = $("gasPedal");
+          if (gasEl) gasEl.classList.remove("pressed");
           updateStatusFromTelemetry();
           break;
         case "s": case "arrowdown":
-          if (keyBrakeTimer) clearInterval(keyBrakeTimer);
+          if (keyBrakeTimer) { clearInterval(keyBrakeTimer); keyBrakeTimer = null; }
           state.brakeHold = false;
+          keyDuty = 0;
+          send({ command: "speed", value: 0 });
           handleCommand("stop");
+          const brakeEl = $("brakePedal");
+          if (brakeEl) brakeEl.classList.remove("pressed");
           updateStatusLed("brakelights", toggles.brakeLight);
           updateStatusFromTelemetry();
           break;
-        case "a":
+        case "a": case "arrowleft":
           wheel.keys.left = false;
           updateKeySteer();
           break;
-        case "d":
+        case "d": case "arrowright":
           wheel.keys.right = false;
           updateKeySteer();
           break;
@@ -1391,10 +1425,16 @@
     window.addEventListener("blur", () => {
       if (keyThrottleTimer) clearInterval(keyThrottleTimer);
       if (keyBrakeTimer) clearInterval(keyBrakeTimer);
+      keyThrottleTimer = keyBrakeTimer = null;
       state.throttleHold = false;
       state.brakeHold = false;
+      keyDuty = 0;
       wheel.keys.left = wheel.keys.right = false;
       updateKeySteer();
+      const gasEl = $("gasPedal");
+      if (gasEl) gasEl.classList.remove("pressed");
+      const brakeEl = $("brakePedal");
+      if (brakeEl) brakeEl.classList.remove("pressed");
       releaseHorn();
       updateStatusFromTelemetry();
     });

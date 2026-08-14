@@ -1486,6 +1486,68 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 .gauge-speed { width: 100%; }
 
 /* ============ FULLSCREEN CAM ============ */
+.key-help {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 7, 8, 0.72);
+  backdrop-filter: blur(3px);
+}
+.key-help-panel {
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  background: var(--bg-2);
+  border: 1px solid var(--line-1);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+.key-help-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--text-1);
+  margin-bottom: 12px;
+}
+.key-help-hint {
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+  font-weight: 400;
+}
+.key-help-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.key-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.key {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  background: rgba(47, 125, 246, 0.1);
+  border: 1px solid rgba(47, 125, 246, 0.35);
+  border-radius: 5px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.key-desc {
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  color: var(--text-2);
+  text-align: right;
+}
 .cam-fs {
   position: fixed;
   inset: 0;
