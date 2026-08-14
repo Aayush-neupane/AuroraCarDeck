@@ -1496,6 +1496,7 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
   background: rgba(6, 7, 8, 0.72);
   backdrop-filter: blur(3px);
 }
+.key-help[hidden] { display: none; }
 .key-help-panel {
   width: 340px;
   max-width: calc(100vw - 32px);

@@ -1308,6 +1308,14 @@
     if (el) el.hidden = !el.hidden;
   }
 
+  function initKeyHelpUI() {
+    const el = $("keyHelp");
+    if (!el) return;
+    el.addEventListener("click", (e) => {
+      if (e.target === el) el.hidden = true;
+    });
+  }
+
   function initKeyboard() {
     window.addEventListener("keydown", (e) => {
       if (e.repeat) return;
@@ -1570,6 +1578,7 @@
     initRoundButtons();
     initCamera();
     initKeyboard();
+    initKeyHelpUI();
     initConnectionUI();
     applyOrientation();
     window.addEventListener("resize", applyOrientation);
