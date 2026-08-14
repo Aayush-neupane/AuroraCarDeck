@@ -4,6 +4,12 @@
    No-scroll cockpit layout: controls overlap the camera feed
    ============================================================ */
 
+/* No double-tap zoom / tap delay on rapid taps (wheel, pedals etc.
+   override this with touch-action: none where they need drags) */
+* {
+  touch-action: manipulation;
+}
+
 :root {
   --bg-0: #0a0a0b;
   --bg-1: #101113;
