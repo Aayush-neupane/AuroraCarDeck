@@ -78,6 +78,7 @@
   }
 
   function send(obj) {
+    console.log("[AURORA → ESP32]", JSON.stringify(obj));
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       state.ws.send(JSON.stringify(obj));
     }
