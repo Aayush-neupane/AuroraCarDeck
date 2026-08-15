@@ -1,0 +1,9 @@
+{
+  "name": "aurora-hmi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aurora ESP32 vehicle control HMI — static site",
+  "scripts": {
+    "dev": "node server.js"
+  }
+}

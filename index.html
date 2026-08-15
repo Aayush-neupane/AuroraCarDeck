@@ -10,8 +10,12 @@
 <body>
   <!-- ============ LOADING SCREEN ============ -->
   <div class="loader" id="loader" aria-hidden="true">
+    <div class="loader-brand">
+      <img class="loader-brand-logo" src="assets/auroratransparent.png" alt="Aurora" draggable="false" />
+      <div class="loader-brand-name">AURORA</div>
+    </div>
     <div class="loader-stage">
-      <div class="loader-wheel" id="loaderWheel" aria-hidden="true">
+      <div class="loader-wheel" aria-hidden="true">
         <span class="loader-rim"></span>
         <span class="loader-spokes">
           <i></i><i></i><i></i>
@@ -34,10 +38,13 @@
   <header class="conn-bar">
     <div class="conn-left">
       <img class="brand-logo" src="assets/auroratransparent.png" alt="Aurora" draggable="false">
-      <span class="brand-name">AURORA</span>
-      <span class="brand-sub">VEHICLE CONTROL</span>
+      <div class="brand-block">
+        <span class="brand-name">AURORA</span>
+        <span class="brand-sub">VEHICLE CONTROL</span>
+      </div>
     </div>
     <div class="conn-center">
+      <span id="connClock" class="conn-clock">--:--</span>
       <span id="connState" class="conn-state">OFFLINE</span>
       <span id="connLatency" class="conn-latency">PING —</span>
     </div>
@@ -121,7 +128,7 @@
         </div>
 
         <!-- GEAR SLIDER (over camera view) -->
-        <div class="gear-selector" id="gearSelector" aria-label="Gear selector">
+        <div class="gear-selector" aria-label="Gear selector">
           <div class="gear-box">
             <div class="gear-rail" id="gearRail">
               <span class="gear-notch" data-gear="P"></span>
@@ -160,7 +167,7 @@
                   <path d="M12 8v4l2.5 2.5M8.5 12a3.5 3.5 0 0 0 3.5 3.5"/>
                 </svg>
               </div>
-              <div class="pedal-rail"><span class="rail-fill" id="brakeRailFill"></span></div>
+              <div class="pedal-rail"><span class="rail-fill"></span></div>
               <span class="pedal-mode" id="brakeSub">REVERSE + STOP</span>
             </div>
             <div class="pedal gas-pedal" id="gasPedal">
@@ -171,7 +178,7 @@
                   <path d="M17 5l4 4-4 4"/>
                 </svg>
               </div>
-              <div class="pedal-rail"><span class="rail-fill" id="gasRailFill"></span></div>
+              <div class="pedal-rail"><span class="rail-fill"></span></div>
               <span class="pedal-mode">THROTTLE</span>
             </div>
           </div>
@@ -188,6 +195,10 @@
                 <div class="gauge-unit">km/h</div>
               </div>
             </div>
+            <div class="sub-readout" aria-hidden="true">
+              <span class="sub-item"><i class="sub-dot"></i>GEAR <b id="subGear">P</b></span>
+              <span class="sub-item"><i class="sub-dot"></i>TRIP <b id="subTrip">0.0</b> km</span>
+            </div>
           </div>
         </div>
 
@@ -201,7 +212,7 @@
         </div>
 
         <!-- STEERING WHEEL + COLUMN -->
-        <div class="wheel-wrap" id="wheelWrap">
+        <div class="wheel-wrap">
           <div class="steering-wheel" id="steeringWheel" role="slider" aria-label="Steering wheel" aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0" tabindex="0">
             <span class="wheel-topmark"></span>
             <span class="wheel-grip g-l"></span>

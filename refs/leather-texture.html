@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REFERENCE — Bluish Leather Texture</title>
+<style>
+  /* ============================================================
+     BLUISH LEATHER TEXTURE — reference only, not linked to the site.
+     Copy the :root variables below into any project.
+     ============================================================ */
+  :root {
+    --leather-sheen:
+      linear-gradient(115deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.05) 20%, rgba(255, 255, 255, 0) 36%, rgba(255, 255, 255, 0.03) 56%, rgba(255, 255, 255, 0) 74%);
+    --leather-ambient:
+      radial-gradient(115% 95% at 50% 25%, rgba(122, 152, 210, 0.12), rgba(28, 40, 66, 0.22) 46%, rgba(6, 9, 16, 0.65) 100%);
+    --leather-pebble:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='p'><feTurbulence type='fractalNoise' baseFrequency='0.055 0.075' numOctaves='3' seed='9' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='table' tableValues='0 0.34'/></feComponentTransfer></filter><rect width='100%' height='100%' filter='url(%23p)'/></svg>");
+    --leather-grain:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='130' height='130'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85 1.15' numOctaves='4' seed='5' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/><feComponentTransfer><feFuncA type='linear' slope='0.16'/></feComponentTransfer></filter><rect width='100%' height='100%' filter='url(%23g)'/></svg>");
+    --leather-creases:
+      repeating-linear-gradient(58deg, transparent 0 42px, rgba(0, 0, 0, 0.06) 42px 44px, rgba(255, 255, 255, 0.025) 44px 46px, transparent 46px 172px);
+    --leather-pore:
+      repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px);
+    --leather-vignette:
+      radial-gradient(80% 65% at 60% 42%, rgba(92, 122, 178, 0.06), rgba(0, 0, 0, 0.30) 68%, rgba(0, 0, 0, 0.55) 100%);
+    --leather-base:
+      linear-gradient(180deg, #151b28, #0e141f 45%, #070a12);
+    --leather-bg:
+      var(--leather-sheen),
+      var(--leather-ambient),
+      var(--leather-pebble),
+      var(--leather-grain),
+      var(--leather-creases),
+      var(--leather-pore),
+      var(--leather-vignette),
+      var(--leather-base);
+  }
+
+  /* --- demo page styling only, not part of the texture --- */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: #0a0a0b;
+    color: #e8eaed;
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+  .label { font-size: 11px; letter-spacing: 0.3em; color: #5b616a; text-transform: uppercase; }
+  /* ============================================================
+     THE TEXTURE — apply `background-image: var(--leather-bg)`
+     to any panel. The optional premium extras below (brow trim,
+     stitching, ambient glow) are what the HMI uses on top.
+     ============================================================ */
+  .leather-panel {
+    position: relative;
+    width: min(720px, 90vw);
+    height: 340px;
+    border: 1px solid #31343b;
+    border-radius: 6px;
+    background-color: #131517;
+    background-image: var(--leather-bg);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 3px 10px rgba(95, 165, 255, 0.16),   /* ambient LED under dash cap */
+      inset 0 -14px 30px rgba(0, 0, 0, 0.55),
+      inset 0 0 64px rgba(0, 0, 0, 0.28),
+      0 12px 30px rgba(0, 0, 0, 0.42);
+  }
+  /* machined-aluminium brow along the top edge */
+  .leather-panel::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    border-radius: 6px 6px 0 0;
+    background: linear-gradient(90deg, rgba(140, 150, 165, 0.14), rgba(240, 244, 250, 0.40) 28%, rgba(120, 130, 145, 0.30) 55%, rgba(240, 244, 250, 0.28) 78%, rgba(140, 150, 165, 0.10));
+    pointer-events: none;
+    z-index: 8;
+  }
+  /* hand-stitched seam along the lower edge */
+  .leather-panel::after {
+    content: "";
+    position: absolute;
+    left: 14px; right: 14px;
+    bottom: 4px;
+    height: 1px;
+    border-top: 1px dashed rgba(190, 205, 230, 0.20);
+    pointer-events: none;
+    z-index: 8;
+  }
+</style>
+</head>
+<body>
+  <div class="label">Bluish leather — pebble grain + fine grain + creases + satin sheen</div>
+  <div class="leather-panel" aria-hidden="true"></div>
+</body>
+</html>

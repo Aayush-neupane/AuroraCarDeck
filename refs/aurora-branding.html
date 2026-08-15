@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REFERENCE — AURORA Branding</title>
+<style>
+  /* ============================================================
+     AURORA wordmark — reference only, not linked to the site.
+     Two variants are included:
+       1. .brand-lockup  → header bar style (logo + name + sub)
+       2. .brand-title   → big loader wordmark style
+     ============================================================ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(1100px 750px at 18% -12%, rgba(64,122,255,0.18), transparent 60%),
+      radial-gradient(900px 650px at 88% 112%, rgba(26,185,200,0.12), transparent 60%),
+      #0a0a0b;
+    color: #e8eaed;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 64px;
+    padding: 48px;
+  }
+  .label { font-size: 11px; letter-spacing: 0.3em; color: #5b616a; text-transform: uppercase; }
+
+  /* ============================================================
+     1) HEADER LOCKUP — logo + wordmark + tagline row
+     ============================================================ */
+  .brand-lockup { display: flex; align-items: center; gap: 12px; }
+  .brand-logo {
+    width: 44px; height: 44px;
+    object-fit: cover;
+    filter: drop-shadow(0 0 8px rgba(47,125,246,0.55));
+  }
+  .brand-name {
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    font-size: 20px;
+    color: #e8eaed;
+  }
+  .brand-sub {
+    font-size: 8px;
+    letter-spacing: 0.22em;
+    color: #5b616a;
+    margin-top: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ============================================================
+     2) BIG WORDMARK — loader style: brushed-metal gradient text
+        with fine scanlines + layered drop shadows
+     ============================================================ */
+  .brand-title {
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: clamp(48px, 10vw, 96px);
+    font-weight: 700;
+    letter-spacing: 0.6em;
+    text-indent: 0.6em;
+    color: transparent;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        rgba(255, 255, 255, 0.18) 0 1px,
+        rgba(0, 0, 0, 0.06) 1px 2px
+      ),
+      linear-gradient(180deg, #fdfdfe 5%, #d9e0e9 40%, #a8b4c2 55%, #eef2f7 92%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    filter:
+      drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6))
+      drop-shadow(0 4px 8px rgba(0, 0, 0, 0.45));
+    user-select: none;
+  }
+  .brand-title-badge {
+    margin-top: 14px;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    color: #9aa0a8;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+  <div>
+    <div class="label">Header lockup</div>
+    <div class="brand-lockup">
+      <img class="brand-logo" src="../assets/auroratransparent.png" alt="Aurora">
+      <div>
+        <div class="brand-name">AURORA</div>
+        <div class="brand-sub">Vehicle Control</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label">Loader wordmark</div>
+    <div class="brand-title">AURORA</div>
+    <div class="brand-title-badge">Vehicle Control</div>
+  </div>
+</body>
+</html>

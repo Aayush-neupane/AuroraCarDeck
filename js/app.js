@@ -34,7 +34,6 @@
     config: {},
     speed: 0,
     gear: "P",
-    currentCmd: "none",
     throttleHold: null,
     brakeHold: null,
     steerAngle: 0,
@@ -70,7 +69,11 @@
     if (!port) {
       port = location.port || (proto === "wss" ? "443" : "80");
     }
-    return proto + "://" + location.hostname + ":" + port + CONFIG.wsPath;
+    return proto + "://" + pageHost() + ":" + port + CONFIG.wsPath;
+  }
+
+  function pageHost() {
+    return location.hostname || (location.protocol === "file:" ? "localhost" : "");
   }
 
   function send(obj) {
@@ -82,9 +85,6 @@
   function sendCommand(cmd, meta) {
     const msg = Object.assign({ command: cmd }, meta || {});
     send(msg);
-    state.currentCmd = cmd;
-    const el = $("telCurrentCmd");
-    if (el) el.textContent = cmd.toUpperCase();
   }
 
   function connect() {
@@ -106,13 +106,11 @@
       send({ type: "hello", app: "aurora", version: "1.0.0" });
       send({ type: "quality", value: CONFIG.quality });
       applyConfigToUI();
-      updateStatusFromTelemetry({});
     };
     state.ws.onmessage = (ev) => handleMessage(ev.data);
     state.ws.onclose = () => {
       state.wsConnected = false;
       setConnState("off", "OFFLINE");
-      updateStatusFromTelemetry({});
       if (!state.wsIntentionalClose && CONFIG.autoReconnect) scheduleReconnect();
     };
     state.ws.onerror = () => {
@@ -167,9 +165,6 @@
     if (msg.type === "telemetry" || msg.telemetry || msg.type === "state") {
       applyTelemetry(msg.telemetry || msg);
     }
-    if (msg.type === "ack" || msg.ack) {
-      updateStatusLed("motors", !!msg.ack);
-    }
   }
 
   function applyTelemetry(t) {
@@ -192,9 +187,6 @@
 
     if (st.gear !== undefined && st.gear !== state.gear) selectGear(String(st.gear), true);
 
-    updateTelemetryUI();
-    updateWarnings();
-    updateStatusFromTelemetry({});
     updateGauges();
   }
 
@@ -208,65 +200,6 @@
     return undefined;
   }
 
-  function updateTelemetryUI() {
-    const t = state.telemetry;
-    if (!$("telBattery")) return;
-    const batt = t.battery;
-    $("telBattery").textContent = batt !== undefined ? Math.round(batt) + "%" : "—";
-    $("telVoltage").textContent = t.voltage !== undefined ? Number(t.voltage).toFixed(2) + " V" : "—";
-    $("telUptime").textContent = t.uptime !== undefined ? fmtUptime(t.uptime) : "—";
-    $("telMotor").textContent = t.motor !== undefined ? String(t.motor).toUpperCase() : (state.throttleHold || state.brakeHold ? "ACTIVE" : "IDLE");
-    $("telCpuTemp").textContent = t.cpu_temp !== undefined ? t.cpu_temp + " °C" : "—";
-    $("telRssi").textContent = t.rssi !== undefined ? t.rssi + " dBm" : "—";
-    $("telLatency").textContent = t.latency !== undefined ? t.latency + " ms" : "—";
-    $("telPktLoss").textContent = t.pkt_loss !== undefined ? t.pkt_loss + "%" : "—";
-    $("telFps").textContent = t.fps !== undefined ? t.fps : "—";
-    $("telCmdResp").textContent = t.cmd_resp !== undefined ? t.cmd_resp + " ms" : "—";
-    $("telFirmware").textContent = t.firmware !== undefined ? t.firmware : "—";
-    updateBatteryUI(batt, t.voltage);
-    updateWifiUI(t.rssi, t.latency !== undefined ? t.latency : state.latencyRtt);
-  }
-
-  function updateBatteryUI(pct, volt) {
-    const pc = pct !== undefined ? clamp(Math.round(pct), 0, 100) : null;
-    const icon = $("batteryLevel");
-    const pctEl = $("batteryPct");
-    if (!icon && !pctEl) return;
-    if (pctEl) pctEl.textContent = pc === null ? "—" : pc + "%";
-    const voltEl = $("batteryVolt");
-    if (voltEl) voltEl.textContent = volt !== undefined ? Number(volt).toFixed(2) + " V" : "—";
-    if (pc !== null && icon) {
-      icon.style.width = pc + "%";
-      icon.parentElement.classList.toggle("low", pc <= 30);
-      icon.parentElement.classList.toggle("critical", pc <= 15);
-    }
-  }
-
-  function updateWifiUI(rssi, ping) {
-    const barsEl = $("wifiBars");
-    if (!barsEl && !$("wifiRssi")) return;
-    const bars = barsEl ? barsEl.children : [];
-    let level = 0;
-    if (rssi !== undefined) {
-      const r = Number(rssi);
-      level = r > -60 ? 4 : r > -68 ? 3 : r > -76 ? 2 : r > -84 ? 1 : 0;
-    }
-    for (let i = 0; i < bars.length; i++) bars[i].classList.toggle("on", i < level);
-    const rssiEl = $("wifiRssi");
-    if (rssiEl) rssiEl.textContent = rssi !== undefined ? rssi + " dBm" : "—";
-    const pingEl = $("wifiPing");
-    if (pingEl) pingEl.textContent = ping !== undefined && ping !== null ? ping + " ms" : "—";
-  }
-
-  function fmtUptime(s) {
-    s = Math.floor(Number(s) || 0);
-    const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    if (d) return d + "d " + h + "h";
-    if (h) return h + "h " + m + "m";
-    if (m) return m + "m " + sec + "s";
-    return sec + "s";
-  }
-
   /* ============================================================
      GAUGES (canvas)
      ============================================================ */
@@ -275,7 +208,9 @@
     speedVal: 0,
     targets: { speed: 0 },
     canvas: null,
-    size: 0
+    size: 0,
+    tripKm: 0,
+    lastT: null
   };
 
   function initGauges() {
@@ -287,9 +222,16 @@
   }
 
   function gaugeLoop() {
+    const now = performance.now();
+    if (Gauge.lastT === null) Gauge.lastT = now;
+    const dt = (now - Gauge.lastT) / 1000;
+    Gauge.lastT = now;
     Gauge.speedVal = lerp(Gauge.speedVal, Gauge.targets.speed, 0.12);
     if (Math.abs(Gauge.speedVal - Gauge.targets.speed) < 0.3) Gauge.speedVal = Gauge.targets.speed;
+    Gauge.tripKm += (Gauge.speedVal / 3600) * dt;
     drawGauge(Gauge.speedCtx, Gauge.speedVal, 0, 140, { needle: "#ff5a4d", redline: [118, 140] });
+    const trip = $("subTrip");
+    if (trip) trip.textContent = Gauge.tripKm.toFixed(1);
     requestAnimationFrame(gaugeLoop);
   }
 
@@ -314,13 +256,18 @@
     const angOf = (v) => start + (clamp(v, min, max) - min) / span * sweep;
 
     ctx.lineCap = "butt";
-    ctx.strokeStyle = "rgba(255,255,255,0.09)";
-    ctx.lineWidth = 1.4;
+    const ringGrad = ctx.createLinearGradient(0, cy - rOuter, 0, cy + rOuter);
+    ringGrad.addColorStop(0, "rgba(235,240,250,0.30)");
+    ringGrad.addColorStop(0.45, "rgba(255,255,255,0.07)");
+    ringGrad.addColorStop(0.5, "rgba(255,255,255,0.02)");
+    ringGrad.addColorStop(1, "rgba(0,0,0,0.45)");
+    ctx.strokeStyle = ringGrad;
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(cx, cy, rOuter + 2, 0, Math.PI * 2);
     ctx.stroke();
 
-    ctx.strokeStyle = "rgba(255,255,255,0.05)";
+    ctx.strokeStyle = "rgba(115,150,215,0.12)";
     ctx.lineWidth = 10;
     ctx.beginPath();
     ctx.arc(cx, cy, rTrack, start + 0.03, end - 0.03);
@@ -346,7 +293,7 @@
       const a = angOf(v);
       const major = i % 9 === 0;
       const isRed = (opt.redline && v >= opt.redline[0]) || (opt.redZone && v >= opt.redZone[0]);
-      ctx.strokeStyle = isRed ? "#ff5a4d" : (major ? "#c9cdd4" : "#565c65");
+      ctx.strokeStyle = isRed ? "#ff5a4d" : (major ? "#e2e7ef" : "#6a7280");
       ctx.lineWidth = major ? 3.4 : 1.6;
       ctx.beginPath();
       ctx.moveTo(cx + Math.cos(a) * rInner, cy + Math.sin(a) * rInner);
@@ -354,7 +301,7 @@
       ctx.stroke();
     }
 
-    ctx.fillStyle = "#9aa1ab";
+    ctx.fillStyle = "#aab4c0";
     ctx.font = "700 11px 'SF Mono', 'Roboto Mono', monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -366,6 +313,9 @@
     }
 
     const needle = angOf(Math.round(val * 10) / 10);
+    ctx.save();
+    ctx.shadowColor = "rgba(255,90,77,0.65)";
+    ctx.shadowBlur = 7;
     ctx.strokeStyle = opt.needle || "#ff5a4d";
     ctx.lineWidth = 4;
     ctx.lineCap = "round";
@@ -373,7 +323,13 @@
     ctx.moveTo(cx - Math.cos(needle) * 16, cy - Math.sin(needle) * 16);
     ctx.lineTo(cx + Math.cos(needle) * (rInner - 8), cy + Math.sin(needle) * (rInner - 8));
     ctx.stroke();
+    ctx.restore();
 
+    ctx.strokeStyle = "rgba(120,160,220,0.28)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9.5, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.strokeStyle = "rgba(255,255,255,0.18)";
     ctx.lineWidth = 1.6;
     ctx.beginPath();
@@ -394,97 +350,15 @@
     const speed = t.speed !== undefined ? clamp(Number(t.speed), 0, 140) : 0;
     Gauge.targets.speed = speed;
     $("gaugeSpeedNumber").textContent = Math.round(speed);
-    const cc = $("clusterCenter");
-    if (cc) cc.classList.toggle("reverse", state.gear === "R");
+    updateSubReadout();
   }
 
-  /* ============================================================
-     WARNING ICONS
-     ============================================================ */
-  const WARN_ICONS = [
-    { id: "seatbelt", label: "SEATBELT", icon: '<path d="M7 4a5 5 0 0 1 10 0v3M8 5v14M16 5v14M12 12v3"/><path d="M10 17h4"/>' },
-    { id: "battery", label: "BATTERY", icon: '<rect x="3" y="8" width="18" height="10" rx="1"/><path d="M7 12v2M11 12v2M15 12v2M21 11v6"/>' },
-    { id: "temperature", label: "TEMP", icon: '<path d="M14 14V5a2 2 0 0 0-4 0v9a4 4 0 1 0 4 0z"/><path d="M12 9v6"/>' },
-    { id: "engine", label: "ENGINE", icon: '<path d="M3 12h3l2-3h3l2-3h3v3h1a2 2 0 0 1 2 2v2l-3 3h-2l-2-2h-3a1 1 0 0 1-1-1v-2"/><path d="M9 12v5h2l1 3h3l1-3h2l-1-3"/>' },
-    { id: "oil", label: "OIL", icon: '<path d="M12 3s6 7 6 12a6 6 0 0 1-12 0c0-5 6-12 6-12z"/><path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5"/>' },
-    { id: "parkingbrake", label: "P-BRAKE", icon: '<circle cx="12" cy="12" r="9"/><path d="M12 9v3l2 2"/><path d="M8 15h8"/>' },
-    { id: "abs", label: "ABS", icon: '<circle cx="12" cy="12" r="9"/><path d="M8.5 15.5L15.5 8.5"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="12" cy="9" r="1.4"/><circle cx="12" cy="15" r="1.4"/>' },
-    { id: "wifi", label: "WIFI", icon: '<path d="M5 12.5a10 10 0 0 1 14 0M8 15.5a6 6 0 0 1 8 0M12 18.5h.01"/><path d="M4 8.5a14 14 0 0 1 16 0"/>' },
-    { id: "camera", label: "CAMERA", icon: '<rect x="2" y="6" width="14" height="12" rx="1"/><path d="M16 10l6-3v10l-6-3"/>' },
-    { id: "motor", label: "MOTOR", icon: '<circle cx="12" cy="12" r="2.2"/><path d="M12 5v2M12 17v2M12 2v3M12 19v3M5 12h2M17 12h2M2 12h3M19 12h3"/>' },
-    { id: "lights", label: "LIGHTS", icon: '<path d="M8 3h8v9a4 4 0 0 1-8 0V3zM8 3H6m10 0h2M8 15h8M9 18h6"/>' },
-    { id: "indicators", label: "IND", icon: '<path d="M6 5l10 7-10 7V5z"/><path d="M13 5l5 3.5M13 19l5-3.5"/>' }
-  ];
-
-  const WARN_ALERT = new Set(["parkingbrake", "abs"]);
-
-  function initWarnings() {
-    const row = $("warnRow");
-    if (!row) return;
-    row.innerHTML = "";
-    for (const w of WARN_ICONS) {
-      const el = document.createElement("div");
-      el.className = "warn-icon";
-      el.id = "warn-" + w.id;
-      el.title = w.label;
-      el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' + w.icon + "</svg>";
-      row.appendChild(el);
+  function updateSubReadout() {
+    const gear = $("subGear");
+    if (gear) {
+      gear.textContent = state.gear;
+      gear.classList.toggle("active", state.gear === "D" || state.gear === "R");
     }
-  }
-
-  function updateWarnings() {
-    const b = state.telemetry;
-    const w = b.warnings || {};
-    const battLow = b.battery !== undefined && b.battery <= 20;
-    const tempHigh = b.cpu_temp !== undefined && Number(b.cpu_temp) > 75;
-    const camOk = state.streamState === "on";
-    const wifiWeak = b.rssi !== undefined && Number(b.rssi) < -78;
-
-    const map = {
-      seatbelt: !!w.seatbelt,
-      battery: battLow || w.battery === true,
-      temperature: tempHigh || w.temperature === true,
-      engine: w.engine === true,
-      oil: w.oil === true,
-      parkingbrake: w.parkingbrake === true || w.parking_brake === true || state.gear === "P",
-      abs: w.abs === true,
-      wifi: wifiWeak || w.wifi === true,
-      camera: !camOk && state.wsConnected,
-      motor: w.motor === true,
-      lights: w.lights === true,
-      indicators: state.indicators.left || state.indicators.right || state.indicators.hazard
-    };
-
-    for (const key in map) {
-      const el = $("warn-" + key);
-      if (!el) continue;
-      const on = map[key];
-      el.classList.toggle("active", on);
-      el.classList.toggle("alert", on && WARN_ALERT.has(key));
-      el.classList.toggle("ok", on && !WARN_ALERT.has(key) && key !== "indicators");
-      el.classList.toggle("warn-blink", on && key === "indicators" && state.indicators.hazard);
-    }
-  }
-
-  /* ============================================================
-     STATUS LEDS
-     ============================================================ */
-  function updateStatusLed(name, on, blink) {
-    const el = $("st-" + name);
-    if (!el) return;
-    el.classList.toggle("on", !!on);
-    el.classList.toggle("blink", !!blink);
-  }
-
-  function updateStatusFromTelemetry() {
-    const on = state.throttleHold || state.brakeHold;
-    updateStatusLed("connected", state.wsConnected);
-    updateStatusLed("motors", !!on);
-    updateStatusLed("camera", state.streamState === "on");
-    updateStatusLed("headlights", toggles.headlights);
-    updateStatusLed("brakelights", state.brakeHold || toggles.brakeLight);
-    updateStatusLed("indicator", state.indicators.left || state.indicators.right, state.indicators.left || state.indicators.right);
-    updateStatusLed("hazard", state.indicators.hazard, state.indicators.hazard);
   }
 
   /* ============================================================
@@ -680,7 +554,6 @@
     state.steerAngle = Math.round(angle);
     wheel.el.style.transform = "rotate(" + state.steerAngle + "deg)";
     const dead = Math.abs(state.steerAngle) < CONFIG.steerDeadzone;
-    wheel.el.classList.toggle("turned", !dead);
     const st = $("wheelState");
     st.textContent = dead ? "CENTER" : (state.steerAngle < 0 ? "LEFT " + Math.abs(state.steerAngle) + "°" : "RIGHT " + state.steerAngle + "°");
     $("wheelIndicator").classList.toggle("turned", !dead);
@@ -747,9 +620,7 @@
       const cmd = typeof cmdFn === "function" ? cmdFn() : cmdFn;
       el.classList.add("pressed");
       if (cmd === "forward") state.throttleHold = true;
-      if (cmd === "reverse") { state.brakeHold = true; updateStatusLed("brakelights", true, false); }
-      updateStatusFromTelemetry();
-      updateWarnings();
+      if (cmd === "reverse") state.brakeHold = true;
       handleCommand(cmd);
       const rep = setInterval(() => {
         const c = typeof cmdFn === "function" ? cmdFn() : cmdFn;
@@ -769,9 +640,7 @@
       state.brakeHold = false;
       handleCommand(releaseCmd);
       if (wasThrottle || wasBrake) {
-        updateStatusFromTelemetry();
-        updateWarnings();
-        if (elId === "brakePedal") updateStatusLed("brakelights", toggles.brakeLight);
+        updateSubReadout();
       }
     };
     el.addEventListener("pointerdown", press);
@@ -887,8 +756,6 @@
     }
     const knob = $("gearKnob");
     if (knob) knob.textContent = g;
-    const cur = $("gearCurrent");
-    if (cur) cur.textContent = g;
     if (g === "R" && !toggles.reverseLight) {
       setToggle("reverseLight", true);
       send({ command: "reverselight", value: 1 });
@@ -896,31 +763,17 @@
       setToggle("reverseLight", false);
       send({ command: "reverselight", value: 0 });
     }
-    updateStatusFromTelemetry();
-    updateWarnings();
   }
 
   /* ============================================================
      ROCKERS + TOGGLES
      ============================================================ */
   function initRockers() {
-    document.querySelectorAll(".rocker").forEach((r) => {
-      r.addEventListener("click", () => {
-        const name = r.dataset.toggle;
-        if (!(name in toggles)) return;
-        setToggle(name, !toggles[name]);
-        send({ command: name, value: toggles[name] ? 1 : 0 });
-        updateStatusFromTelemetry();
-        if (navigator.vibrate) navigator.vibrate(8);
-      });
-    });
-
     const lever = $("lightLever");
     if (lever) {
       const toggleLever = () => {
         setToggle("headlights", !toggles.headlights);
         send({ command: "headlights", value: toggles.headlights ? 1 : 0 });
-        updateStatusFromTelemetry();
         if (navigator.vibrate) navigator.vibrate(8);
       };
       lever.addEventListener("click", toggleLever);
@@ -935,8 +788,6 @@
 
   function setToggle(name, val) {
     toggles[name] = val;
-    const rocker = document.querySelector('.rocker[data-toggle="' + name + '"]');
-    if (rocker) rocker.classList.toggle("on", val);
     const led = document.querySelector('[data-led="' + name + '"]');
     if (led) led.classList.toggle("on", val);
     if (name === "headlights") {
@@ -945,38 +796,6 @@
         lever.classList.toggle("on", val);
         lever.setAttribute("aria-checked", val ? "true" : "false");
       }
-    }
-    const revBtn = $("btnReverseLight");
-    if (name === "reverseLight" && revBtn) revBtn.classList.toggle("active", val);
-    if (name === "brakeLight") updateStatusLed("brakelights", state.brakeHold || val);
-    if (name === "headlights") updateStatusLed("headlights", val);
-  }
-
-  /* ============================================================
-     ROUND PUSH BUTTONS
-     ============================================================ */
-  function initRoundButtons() {
-    const btns = {
-      btnBrakeLight: "brakeLight",
-      btnReverseLight: "reverseLight",
-      btnLeftInd: "leftIndicator",
-      btnRightInd: "rightIndicator",
-      btnHazard: "hazard"
-    };
-
-    for (const id in btns) {
-      const el = $(id);
-      if (!el) continue;
-      el.addEventListener("click", () => {
-        if (btns[id] === "leftIndicator") setIndicators({ left: !state.indicators.left, hazard: state.indicators.hazard });
-        else if (btns[id] === "rightIndicator") setIndicators({ right: !state.indicators.right, hazard: state.indicators.hazard });
-        else if (btns[id] === "hazard") setIndicators({ hazard: !state.indicators.hazard });
-        else {
-          setToggle(btns[id], !toggles[btns[id]]);
-          send({ command: btns[id], value: toggles[btns[id]] ? 1 : 0 });
-        }
-        if (navigator.vibrate) navigator.vibrate(8);
-      });
     }
   }
 
@@ -991,7 +810,6 @@
     state.brakeHold = false;
     $("gasPedal").classList.remove("pressed");
     $("brakePedal").classList.remove("pressed");
-    updateStatusFromTelemetry();
     if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
   }
 
@@ -1012,15 +830,6 @@
       stalk.classList.toggle("down", it.right || it.hazard);
       stalk.setAttribute("aria-valuenow", it.left || it.hazard ? "-1" : it.right ? "1" : "0");
     }
-    const hzBtn = $("btnHazard");
-    const liBtn = $("btnLeftInd");
-    const riBtn = $("btnRightInd");
-    if (hzBtn) hzBtn.classList.toggle("active", it.hazard);
-    if (hzBtn) hzBtn.classList.toggle("danger", it.hazard);
-    if (liBtn) liBtn.classList.toggle("active", it.left || it.hazard);
-    if (riBtn) riBtn.classList.toggle("active", it.right || it.hazard);
-    if (liBtn) liBtn.classList.add("ind-btn");
-    if (riBtn) riBtn.classList.add("ind-btn");
 
     clearInterval(state.indicatorTimer);
     state.indicatorTimer = null;
@@ -1035,28 +844,15 @@
         const on = state.indicatorPhase % 2 === 1;
         it.ohl = (it.left || it.hazard) && on;
         it.ohr = (it.right || it.hazard) && on;
-        if (liBtn) liBtn.classList.toggle("active", it.ohl);
-        if (riBtn) riBtn.classList.toggle("active", it.ohr);
-        const blip = hzBtn && hzBtn.querySelector(".ind-blip");
-        if (blip) blip.classList.toggle("on", on);
         send({ type: "indicator", left: it.ohl, right: it.ohr, hazard: it.hazard, phase: state.indicatorPhase });
         if (state.autoCancelInd && !it.hazard && state.indicatorPhase >= 8) cancelIndicatorsSilent();
       }, rate);
       it.ohl = it.left || it.hazard;
       it.ohr = it.right || it.hazard;
-      if (liBtn) liBtn.classList.toggle("active", it.ohl);
-      if (riBtn) riBtn.classList.toggle("active", it.ohr);
-      updateStatusLed("indicator", true, true);
-      updateStatusLed("hazard", it.hazard, it.hazard);
       send({ type: "indicator", left: it.ohl, right: it.ohr, hazard: it.hazard, phase: 1 });
     } else {
       send({ type: "indicator", left: false, right: false, hazard: false });
-      const blip = hzBtn && hzBtn.querySelector(".ind-blip");
-      if (blip) blip.classList.remove("on");
-      updateStatusLed("indicator", false);
-      updateStatusLed("hazard", false);
     }
-    updateWarnings();
   }
 
   function cancelIndicatorsSilent() {
@@ -1067,19 +863,7 @@
     state.indicators.hazard = false;
     state.indicators.ohl = false;
     state.indicators.ohr = false;
-    const liBtn = $("btnLeftInd");
-    const riBtn = $("btnRightInd");
-    const hzBtn = $("btnHazard");
-    if (liBtn) liBtn.classList.remove("active");
-    if (riBtn) riBtn.classList.remove("active");
-    if (hzBtn) hzBtn.classList.remove("active");
-    if (hzBtn) hzBtn.classList.remove("danger");
-    const blip = hzBtn && hzBtn.querySelector(".ind-blip");
-    if (blip) blip.classList.remove("on");
     send({ type: "indicator", left: false, right: false, hazard: false });
-    updateStatusLed("indicator", false);
-    updateStatusLed("hazard", false);
-    updateWarnings();
   }
 
   /* ============================================================
@@ -1147,7 +931,7 @@
     if (path.indexOf("http") === 0) {
       return path + (CONFIG.quality !== "0" ? "?q=" + CONFIG.quality : "");
     }
-    return base + location.host + path + (CONFIG.quality !== "0" ? "?q=" + CONFIG.quality : "");
+    return base + pageHost() + ":" + (location.port || "80") + path + (CONFIG.quality !== "0" ? "?q=" + CONFIG.quality : "");
   }
 
   function toggleStream() {
@@ -1169,15 +953,11 @@
     if (camFpsTimer) clearInterval(camFpsTimer);
     camFpsTimer = setInterval(() => {
       $("camHud").textContent = (CONFIG.quality.split("|")[0] || "—") + " • " + camFpsCount + " FPS";
-      const telFps = $("telFps");
-      if (telFps) telFps.textContent = camFpsCount;
       state.telemetry.fps = camFpsCount;
       camFpsCount = 0;
     }, 1000);
     $("camFeed").src = streamURL();
     setCamStatus("ok", "LIVE");
-    updateStatusFromTelemetry();
-    updateWarnings();
   }
 
   function stopStream() {
@@ -1189,8 +969,6 @@
     if (camFpsTimer) { clearInterval(camFpsTimer); camFpsTimer = null; }
     if (state.recording) stopRecord();
     setCamStatus("warn", "STANDBY");
-    updateStatusFromTelemetry();
-    updateWarnings();
   }
 
   function setCamStatus(kind, label) {
@@ -1335,7 +1113,6 @@
             }
             handleCommand("forward");
           }, CONFIG.cmdInterval);
-          updateStatusFromTelemetry();
           break;
         case "s": case "arrowdown":
           if (state.brakeHold) break;
@@ -1351,8 +1128,6 @@
             }
             handleCommand(bcmd);
           }, CONFIG.cmdInterval);
-          updateStatusLed("brakelights", true);
-          updateStatusFromTelemetry();
           break;
         case "a": case "arrowleft":
           wheel.keys.left = true;
@@ -1406,7 +1181,6 @@
           handleCommand("stop");
           const gasEl = $("gasPedal");
           if (gasEl) gasEl.classList.remove("pressed");
-          updateStatusFromTelemetry();
           break;
         case "s": case "arrowdown":
           if (keyBrakeTimer) { clearInterval(keyBrakeTimer); keyBrakeTimer = null; }
@@ -1416,8 +1190,6 @@
           handleCommand("stop");
           const brakeEl = $("brakePedal");
           if (brakeEl) brakeEl.classList.remove("pressed");
-          updateStatusLed("brakelights", toggles.brakeLight);
-          updateStatusFromTelemetry();
           break;
         case "a": case "arrowleft":
           wheel.keys.left = false;
@@ -1444,7 +1216,6 @@
       const brakeEl = $("brakePedal");
       if (brakeEl) brakeEl.classList.remove("pressed");
       releaseHorn();
-      updateStatusFromTelemetry();
     });
   }
 
@@ -1452,19 +1223,14 @@
     if (!(name in toggles)) return;
     setToggle(name, !toggles[name]);
     send({ command: name, value: toggles[name] ? 1 : 0 });
-    updateStatusFromTelemetry();
     if (navigator.vibrate) navigator.vibrate(8);
   }
 
   function pressHorn() {
-    const el = $("btnHorn");
-    if (el) el.classList.add("active");
     sendCommand("horn");
   }
 
   function releaseHorn() {
-    const el = $("btnHorn");
-    if (el) el.classList.remove("active");
     send({ command: "horn", value: 0 });
   }
 
@@ -1541,7 +1307,10 @@
         bar.style.width = v.toFixed(1) + "%";
         if (pct) pct.textContent = Math.round(v) + "%";
         if (v < 99.5) requestAnimationFrame(step);
-        else setTimeout(() => loader.classList.add("done"), 220);
+        else setTimeout(() => {
+          loader.classList.add("done");
+          document.body.classList.add("ready");
+        }, 220);
       };
       requestAnimationFrame(step);
     }
@@ -1563,19 +1332,29 @@
     }
   }
 
+  function initClock() {
+    const el = $("connClock");
+    if (!el) return;
+    const tick = () => {
+      const d = new Date();
+      el.textContent = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    };
+    tick();
+    setInterval(tick, 1000);
+  }
+
   /* ============================================================
      INIT
      ============================================================ */
   function init() {
     initLoader();
     initGauges();
-    initWarnings();
+    initClock();
     initWheel();
     initPedals();
     initGearSelector();
     initIndicatorStalk();
     initRockers();
-    initRoundButtons();
     initCamera();
     initKeyboard();
     initKeyHelpUI();
@@ -1587,8 +1366,6 @@
       window.visualViewport.addEventListener("resize", applyOrientation);
     }
 
-    updateStatusFromTelemetry();
-    updateWarnings();
     setSteer(0);
 
     /* Long-press on touch: kill text selection callout / context menu */
