@@ -15,7 +15,8 @@
     steerMaxDeg: 90,
     cmdInterval: 160,
     autoReconnect: true,
-    reconnectDelay: 2500
+    reconnectDelay: 2500,
+    demoMode: /netlify\.app$/.test(location.hostname)
   };
 
   const $ = (id) => document.getElementById(id);
@@ -89,6 +90,10 @@
 
   function connect() {
     if (state.ws && (state.ws.readyState === WebSocket.OPEN || state.ws.readyState === WebSocket.CONNECTING)) return;
+    if (CONFIG.demoMode) {
+      setConnState("off", "DEMO — ESP32 NOT LINKED");
+      return;
+    }
     state.wsIntentionalClose = false;
     const url = wsUrl();
     $("wsUrl").textContent = url.replace("ws://", "http://").replace("wss://", "https://");
@@ -942,6 +947,10 @@
   function startStream() {
     if (CONFIG.quality === "0") {
       setCamStatus("warn", "STREAM DISABLED");
+      return;
+    }
+    if (CONFIG.demoMode) {
+      setCamStatus("warn", "NO STREAM IN DEMO");
       return;
     }
     state.streamState = "on";
