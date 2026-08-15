@@ -1,0 +1,6 @@
+.git
+node_modules
+.netlify
+firmware
+*.pdf
+.DS_Store
