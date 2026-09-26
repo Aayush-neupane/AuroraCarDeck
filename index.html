@@ -31,6 +31,10 @@
         </div>
         <div class="loader-sub">INITIALIZING COCKPIT</div>
       </div>
+      <a class="loader-credit" href="https://dynamic-aayush38.netlify.app" target="_blank" rel="noopener noreferrer" aria-label="Aayush Neupane — portfolio" tabindex="-1">
+        <img src="assets/logotrp.png" alt="Aayush Neupane" width="22" height="22" draggable="false" class="loader-credit-logo" />
+        <span>Developed by <span class="loader-credit-name">Aayush Neupane</span></span>
+      </a>
     </div>
   </div>
 
@@ -51,6 +55,7 @@
     <div class="conn-right">
       <div class="ws-url" id="wsUrl">ws://—</div>
       <button id="btnConnect" class="btn btn-sm" type="button">CONNECT</button>
+      <button id="btnBle" class="btn btn-sm" type="button">BT</button>
     </div>
   </header>
 
@@ -244,6 +249,13 @@
     </section>
   </main>
 
+  <footer class="site-credit" aria-label="Developer credit">
+    <a href="https://dynamic-aayush38.netlify.app" target="_blank" rel="noopener noreferrer" aria-label="Aayush Neupane — portfolio" class="site-credit-link">
+      <img src="assets/logotrp.png" alt="Aayush Neupane" width="22" height="22" draggable="false" class="site-credit-logo" />
+      <span>Developed by <span class="site-credit-name">Aayush Neupane</span></span>
+    </a>
+  </footer>
+
   <!-- ============ FULLSCREEN CAM VIEW ============ -->
   <div class="cam-fs" id="camFs" hidden>
     <img id="camFeedFs" class="cam-fs-feed" alt="ESP32-CAM live feed fullscreen" />
@@ -276,6 +288,7 @@
     </div>
   </div>
 
+  <script src="js/config.local.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -7,3 +7,5 @@ node_modules/
 assets/*.pdf
 # ESP32 firmware sketch (kept local only)
 firmware/
+# Local drive-link overrides (auth token — never commit)
+js/config.local.js

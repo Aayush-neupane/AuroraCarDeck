@@ -7,6 +7,12 @@
   const CONFIG = {
     wsPort: 81,
     wsPath: "/ws",
+    // Drive-link token. MUST match AUTH_TOKEN in firmware secrets.h.
+    // Keep it out of git: copy js/config.local.example.js to
+    // js/config.local.js (untracked, loaded by index.html) and set it there.
+    authToken: "",
+    bleNusService: "6e400001-b5a3-f393-e0a9-e50e24dcca9e",
+    bleNusRx: "6e400002-b5a3-f393-e0a9-e50e24dcca9e",
     streamPath: "/stream",
     capturePath: "/capture",
     quality: "800x600|20",
@@ -19,6 +25,11 @@
     demoMode: /netlify\.app$/.test(location.hostname)
   };
 
+  // Local overrides (untracked js/config.local.js may define these).
+  try {
+    Object.assign(CONFIG, window.AURORA_CONFIG || {});
+  } catch (e) {}
+
   const $ = (id) => document.getElementById(id);
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -29,6 +40,7 @@
   const state = {
     ws: null,
     wsConnected: false,
+    ble: { device: null, server: null, rx: null, connected: false },
     wsIntentionalClose: false,
     reconnectAttempts: 0,
     telemetry: {},
@@ -57,8 +69,7 @@
   };
 
   const toggles = {
-    headlights: false, highbeam: false, parkinglights: false,
-    foglights: false, interiorlight: false, brakeLight: false, reverseLight: false
+    headlights: false
   };
 
   /* ============================================================
@@ -82,6 +93,7 @@
     if (state.ws && state.ws.readyState === WebSocket.OPEN) {
       state.ws.send(JSON.stringify(obj));
     }
+    sendBle(obj);   // mirrors drive commands over Web Bluetooth when paired
   }
 
   function sendCommand(cmd, meta) {
@@ -108,14 +120,23 @@
     state.ws.onopen = () => {
       state.wsConnected = true;
       state.reconnectAttempts = 0;
+      state.wsOpenedAt = Date.now();
       setConnState("on", "CONNECTED");
+      // Drive-link handshake first (old firmware ignores it harmlessly).
+      if (CONFIG.authToken) send({ auth: CONFIG.authToken });
       send({ type: "hello", app: "aurora", version: "1.0.0" });
-      send({ type: "quality", value: CONFIG.quality });
       applyConfigToUI();
     };
     state.ws.onmessage = (ev) => handleMessage(ev.data);
     state.ws.onclose = () => {
       state.wsConnected = false;
+      // Kicked immediately after opening with a token configured almost
+      // always means the car rejected the handshake — stop hammering it.
+      if (CONFIG.authToken && state.wsOpenedAt && Date.now() - state.wsOpenedAt < 1500) {
+        state.wsIntentionalClose = true;
+        setConnState("off", "LINK REJECTED — check authToken");
+        return;
+      }
       setConnState("off", "OFFLINE");
       if (!state.wsIntentionalClose && CONFIG.autoReconnect) scheduleReconnect();
     };
@@ -135,6 +156,101 @@
     state.wsIntentionalClose = true;
     if (state.ws) { try { state.ws.close(); } catch (e) {} state.ws = null; }
     setConnState("off", "OFFLINE");
+  }
+
+  /* ============================================================
+     BLUETOOTH (Web Bluetooth → BLE NUS on the ESP32)
+     Works from the public site with the user's OWN car — no WiFi
+     needed. Chrome/Edge on Android + desktop only; iPhone has no
+     Web Bluetooth API. Pairing name on the car: "AuroraCar".
+     Single-char protocol, see handleBT() in the firmware:
+       F/B = fwd/rev, S = stop, L/R = pivot, H/h = horn on/off,
+       W/w = headlights on/off, 0-9/q = speed steps.
+     ============================================================ */
+  function bleSupported() {
+    return typeof navigator !== "undefined" && "bluetooth" in navigator;
+  }
+
+  function speedChar(v) {
+    v = Math.max(0, Math.min(255, Number(v) || 0));
+    if (v >= 250) return "q";
+    return String(Math.round(v / 25));   // 0..9 → 0,25,..225
+  }
+
+  function bleCharFor(obj) {
+    if (!obj || typeof obj !== "object" || !obj.command) return null;
+    switch (obj.command) {
+      case "forward": return "F";
+      case "reverse": return "B";
+      case "stop": return "S";
+      case "left": return "L";
+      case "right": return "R";
+      case "center": return "S";
+      case "estop": return "S";
+      case "speed": return speedChar(obj.value);
+      case "horn": return Number(obj.value) === 0 ? "h" : "H";
+      case "headlights": return obj.value ? "W" : "w";
+      default: return null;   // ping / indicator / hello stay on WiFi
+    }
+  }
+
+  function sendBle(obj) {
+    if (!state.ble.connected || !state.ble.rx) return;
+    const ch = bleCharFor(obj);
+    if (!ch) return;
+    try {
+      const data = new TextEncoder().encode(ch);
+      const rx = state.ble.rx;
+      const p = rx.writeValueWithoutResponse
+        ? rx.writeValueWithoutResponse(data)
+        : rx.writeValue(data);
+      Promise.resolve(p).catch(() => setBleConnected(false));
+    } catch (e) {
+      setBleConnected(false);
+    }
+  }
+
+  function setBleConnected(on) {
+    state.ble.connected = !!on;
+    if (!on) { state.ble.rx = null; state.ble.server = null; }
+    const btn = $("btnBle");
+    if (btn) {
+      btn.textContent = on ? "BT ●" : "BT";
+      btn.classList.toggle("active", !!on);
+    }
+  }
+
+  async function connectBle() {
+    if (!bleSupported()) return;
+    try {
+      const btn = $("btnBle");
+      if (btn) btn.textContent = "BT …";
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [CONFIG.bleNusService] }],
+        optionalServices: [CONFIG.bleNusService]
+      });
+      device.addEventListener("gattserverdisconnected", () => setBleConnected(false));
+      const server = await device.gatt.connect();
+      const svc = await server.getPrimaryService(CONFIG.bleNusService);
+      const rx = await svc.getCharacteristic(CONFIG.bleNusRx);
+      state.ble.device = device;
+      state.ble.server = server;
+      state.ble.rx = rx;
+      setBleConnected(true);
+      sendBle({ command: "stop" });
+    } catch (e) {
+      setBleConnected(false);   // user cancelled pairing, or out of range
+    }
+  }
+
+  function disconnectBle() {
+    try {
+      if (state.ble.device && state.ble.device.gatt.connected) {
+        sendBle({ command: "stop" });
+        state.ble.device.gatt.disconnect();
+      }
+    } catch (e) {}
+    setBleConnected(false);
   }
 
   function setConnState(kind, label) {
@@ -175,23 +291,19 @@
 
   function applyTelemetry(t) {
     const st = state.telemetry;
-    assign(st, "battery", t, "battery_pct", "battery", "batt");
-    assign(st, "voltage", t, "voltage", "volts", "batt_voltage", "battery_voltage");
     assign(st, "uptime", t, "uptime", "uptime_s");
     assign(st, "motor", t, "motor_state", "motor");
+    assign(st, "duty", t, "duty", "motor_duty", "pwm");
     assign(st, "cpu_temp", t, "cpu_temp", "temperature", "temp");
     assign(st, "rssi", t, "rssi", "wifi_rssi", "wifi");
     assign(st, "latency", t, "latency", "ping", "rtt");
-    assign(st, "pkt_loss", t, "pkt_loss", "packet_loss", "ploss");
-    assign(st, "fps", t, "fps", "frame_rate", "frames");
-    assign(st, "cmd_resp", t, "cmd_resp", "cmd_response", "resp_time");
     assign(st, "firmware", t, "firmware", "fw", "firmware_version");
-    assign(st, "gear", t, "gear");
-    assign(st, "speed", t, "speed", "spd");
-    assign(st, "current_cmd", t, "current_cmd", "cmd");
-    if (t.warnings) st.warnings = t.warnings;
 
-    if (st.gear !== undefined && st.gear !== state.gear) selectGear(String(st.gear), true);
+    /* speed is derived here from the raw motor duty reported by the board */
+    if (st.duty !== undefined) {
+      st.speed = (st.motor === "forward" || st.motor === "reverse")
+        ? Math.round(Number(st.duty) / 255 * 60) : 0;
+    }
 
     updateGauges();
   }
@@ -656,7 +768,9 @@
   }
 
   function handleCommand(cmd) {
-    if (cmd === "forward" || cmd === "reverse") sendCommand(cmd);
+    /* gear gating lives in the HMI; the board just relays raw commands */
+    if (cmd === "forward") sendCommand(state.gear === "D" ? "forward" : "stop");
+    else if (cmd === "reverse") sendCommand(state.gear === "R" ? "reverse" : "stop");
     else send({ command: cmd });
   }
 
@@ -698,7 +812,6 @@
 
     const commit = (i, drag) => {
       selectGear(GEAR_ORDER[i]);
-      sendCommand("gear", { gear: state.gear });
       if (navigator.vibrate) navigator.vibrate(drag ? 6 : 12);
       if (drag) pop();
     };
@@ -762,13 +875,6 @@
     }
     const knob = $("gearKnob");
     if (knob) knob.textContent = g;
-    if (g === "R" && !toggles.reverseLight) {
-      setToggle("reverseLight", true);
-      send({ command: "reverselight", value: 1 });
-    } else if (g !== "R" && toggles.reverseLight) {
-      setToggle("reverseLight", false);
-      send({ command: "reverselight", value: 0 });
-    }
   }
 
   /* ============================================================
@@ -809,7 +915,7 @@
   function triggerEStop() {
     sendCommand("estop");
     send({ type: "emergency", value: 1 });
-    for (const t of ["headlights", "highbeam", "parkinglights", "foglights", "interiorlight", "brakeLight", "reverseLight"]) setToggle(t, false);
+    setToggle("headlights", false);
     selectGear("P");
     setIndicators({ left: false, right: false, hazard: false });
     state.throttleHold = false;
@@ -1151,15 +1257,11 @@
           break;
         case "h": toggleRocker("headlights");
           break;
-        case "f": toggleRocker("foglights");
-          break;
         case "q": setIndicators({ left: !state.indicators.left, hazard: state.indicators.hazard });
           break;
         case "e": setIndicators({ right: !state.indicators.right, hazard: state.indicators.hazard });
           break;
         case "z": setIndicators({ hazard: !state.indicators.hazard });
-          break;
-        case "p": toggleRocker("parkinglights");
           break;
         case "r": toggleRecord();
           break;
@@ -1170,11 +1272,7 @@
           toggleKeyHelp();
           break;
         case "g":
-          const next = GEAR_ORDER[(GEAR_ORDER.indexOf(state.gear) + 1) % GEAR_ORDER.length];
-          selectGear(next);
-          sendCommand("gear", { gear: next });
-          break;
-        case "b": toggleRocker("highbeam");
+          selectGear(GEAR_ORDER[(GEAR_ORDER.indexOf(state.gear) + 1) % GEAR_ORDER.length]);
           break;
       }
     });
@@ -1226,7 +1324,20 @@
       const brakeEl = $("brakePedal");
       if (brakeEl) brakeEl.classList.remove("pressed");
       releaseHorn();
+      // Safety: an unfocused page must never keep driving the car.
+      // eStop() is non-latching (stops motion + horn + lights only).
+      sendCommand("estop");
     });
+
+    // Best-effort stop when the page is hidden or going away. The car
+    // also stops itself when the socket drops (firmware WStype_DISCONNECTED).
+    const panicStop = () => {
+      try { sendCommand("estop"); } catch (e) {}
+    };
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) panicStop();
+    });
+    window.addEventListener("beforeunload", panicStop);
   }
 
   function toggleRocker(name) {
@@ -1256,6 +1367,19 @@
       if (state.wsConnected) disconnect();
       else connect();
     });
+    const bleBtn = $("btnBle");
+    if (bleBtn) {
+      if (!bleSupported()) {
+        bleBtn.disabled = true;
+        bleBtn.title = "Web Bluetooth needs Chrome or Edge (Android/desktop). Not available on iPhone.";
+      } else {
+        bleBtn.title = "Pair your own ESP32 car over Bluetooth (no WiFi needed)";
+      }
+      bleBtn.addEventListener("click", () => {
+        if (state.ble.connected) disconnectBle();
+        else connectBle();
+      });
+    }
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && state.fullscreen) closeFullscreen();
     });
